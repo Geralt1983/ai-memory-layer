@@ -26,8 +26,12 @@ def main():
     # Option 2: Chroma (in-memory or persistent)
     # vector_store = ChromaVectorStore(collection_name="memories", persist_directory="./data/chroma_db")
     
-    # Initialize memory engine with embedding provider
-    memory_engine = MemoryEngine(vector_store=vector_store, embedding_provider=embedding_provider)
+    # Initialize memory engine with embedding provider and persistence
+    memory_engine = MemoryEngine(
+        vector_store=vector_store, 
+        embedding_provider=embedding_provider,
+        persist_path="./data/memories.json"
+    )
     
     # Initialize OpenAI integration
     ai = OpenAIIntegration(
@@ -93,7 +97,11 @@ def interactive_mode():
     
     embedding_provider = OpenAIEmbeddings(api_key, model="text-embedding-ada-002")
     vector_store = ChromaVectorStore(persist_directory="./data/chroma_db")
-    memory_engine = MemoryEngine(vector_store=vector_store, embedding_provider=embedding_provider)
+    memory_engine = MemoryEngine(
+        vector_store=vector_store, 
+        embedding_provider=embedding_provider,
+        persist_path="./data/memories_interactive.json"
+    )
     ai = OpenAIIntegration(api_key=api_key, memory_engine=memory_engine)
     
     print("AI Memory Layer - Interactive Mode")

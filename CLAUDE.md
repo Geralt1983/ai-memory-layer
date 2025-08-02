@@ -47,23 +47,116 @@ The system uses a modular plugin architecture with three main layers:
 
 ## Key Implementation Notes
 
-- **Memory Search**: The `search_memories` method in MemoryEngine currently only returns recent memories - it needs to be fixed to use actual embedding similarity search
-- **Persistence**: Vector stores support persistence but MemoryEngine doesn't persist its memory list
+- **Memory Search**: Uses embedding similarity search when both vector store and embedding provider are available
+- **Persistence**: Both vector stores and MemoryEngine support persistence:
+  - Vector stores: FAISS saves to `.index/.pkl` files, ChromaDB has built-in persistence
+  - MemoryEngine: Saves memory list to JSON file, auto-loads on initialization
 - **Environment Variables**: Required in `.env`:
   - `OPENAI_API_KEY`
-  - `VECTOR_STORE_TYPE` (faiss or chroma)
-  - `PERSIST_DIRECTORY` (./data)
+  - Optional: `VECTOR_STORE_TYPE` (faiss or chroma)
+  - Optional: `PERSIST_DIRECTORY` (./data)
+  - Optional: `MEMORY_PERSIST_PATH` (./data/memories.json)
 
 ## Testing
 
-No test suite exists yet. When implementing tests:
-- Use pytest (already in dev dependencies)
-- Test both FAISS and ChromaDB backends
-- Mock OpenAI API calls
-- Test persistence and recovery
+The project includes a comprehensive test suite using pytest:
+
+```bash
+# Install dev dependencies (includes pytest)
+pip install -e ".[dev]"
+
+# Run all tests
+pytest
+
+# Run specific test categories
+pytest -m unit          # Unit tests only
+pytest -m integration   # Integration tests only
+pytest tests/test_memory_engine.py  # Specific test file
+```
+
+**Test Structure:**
+- `tests/conftest.py` - Shared fixtures and mocks
+- `tests/test_memory.py` - Memory class tests
+- `tests/test_memory_engine.py` - Core engine tests with persistence
+- `tests/test_storage.py` - FAISS and ChromaDB storage tests
+- `tests/test_embeddings.py` - Embedding provider tests (mocked OpenAI)
+- `tests/test_context_builder.py` - Context building tests
+- `tests/test_openai_integration.py` - OpenAI integration tests (mocked)
+- `tests/test_integration.py` - End-to-end integration tests
+
+## REST API
+
+The project includes a FastAPI-based REST API for remote access:
+
+```bash
+# Start API server
+python run_api.py
+
+# Or directly with uvicorn
+uvicorn api.main:app --reload
+```
+
+**API Endpoints:**
+- `GET /health` - Health check and status
+- `POST /memories` - Create new memory
+- `GET /memories` - Get recent memories
+- `POST /memories/search` - Search memories by similarity
+- `DELETE /memories` - Clear all memories
+- `POST /chat` - Chat with AI using memory context
+- `GET /stats` - Get memory statistics
+
+**Documentation:**
+- Interactive docs: http://localhost:8000/docs
+- OpenAPI schema: http://localhost:8000/openapi.json
+
+**Environment Variables for API:**
+- All previous variables plus optional API-specific settings
+- Server runs on port 8000 by default
+
+## Logging
+
+The project includes comprehensive structured logging:
+
+**Configuration (via environment variables):**
+- `LOG_LEVEL` - DEBUG, INFO, WARNING, ERROR, CRITICAL (default: INFO)
+- `LOG_FORMAT` - json or text (default: json)
+- `LOG_FILE` - Log file name (optional, console-only if not set)
+- `LOG_DIR` - Log directory (default: ./logs)
+
+**Features:**
+- Structured JSON logging with consistent fields
+- Performance monitoring with execution times
+- API request/response logging with status codes
+- Memory operation tracking
+- OpenAI API call logging
+- Automatic log rotation (10MB files, 5 backups)
+- Contextual logging with operation metadata
+
+**Usage:**
+```python
+from core.logging_config import get_logger, monitor_performance
+
+logger = get_logger("my_module")
+logger.info("Operation completed", extra={"count": 42})
+
+@monitor_performance("my_operation")
+def my_function():
+    # Function will be automatically timed and logged
+    pass
+```
+
+**Testing API:**
+```bash
+# Run API client example
+python api_client_example.py
+
+# Interactive testing
+python api_client_example.py interactive
+```
 
 ## Common Tasks
 
 - To add a new vector store: Implement the `VectorStore` abstract class
 - To add a new embedding provider: Implement the `EmbeddingProvider` interface
 - To modify context building: Update `ContextBuilder.build_context()`
+- To add new API endpoints: Extend `api/main.py` and add models to `api/models.py`
