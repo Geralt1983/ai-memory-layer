@@ -2,29 +2,34 @@ from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
 import os
 
-# Numpy-free implementation
-NUMPY_AVAILABLE = False
-print("Info: Running in numpy-free mode for compatibility")
+# Try to import numpy, fall back to mock if not available
+try:
+    import numpy as np
 
-# Mock numpy for type compatibility
-class MockArray:
-    def __init__(self, data=None):
-        self.data = data if data is not None else []
-    
-    def tolist(self):
-        return self.data if isinstance(self.data, list) else [self.data]
-    
-    def __str__(self):
-        return f"MockArray({self.data})"
+    NUMPY_AVAILABLE = True
+except ImportError:
+    print("Info: Running in numpy-free mode for compatibility")
+    NUMPY_AVAILABLE = False
 
-class MockNumpy:
-    ndarray = MockArray
-    
-    @staticmethod
-    def array(data):
-        return MockArray(data)
+    # Mock numpy for type compatibility
+    class MockArray:
+        def __init__(self, data=None):
+            self.data = data if data is not None else []
 
-np = MockNumpy()
+        def tolist(self):
+            return self.data if isinstance(self.data, list) else [self.data]
+
+        def __str__(self):
+            return f"MockArray({self.data})"
+
+    class MockNumpy:
+        ndarray = MockArray
+
+        @staticmethod
+        def array(data):
+            return MockArray(data)
+
+    np = MockNumpy()
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import json
@@ -40,22 +45,22 @@ class Memory:
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
     relevance_score: float = 0.0
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return {
-            'content': self.content,
-            'metadata': self.metadata,
-            'timestamp': self.timestamp.isoformat(),
-            'relevance_score': self.relevance_score
+            "content": self.content,
+            "metadata": self.metadata,
+            "timestamp": self.timestamp.isoformat(),
+            "relevance_score": self.relevance_score,
         }
-    
+
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'Memory':
+    def from_dict(cls, data: Dict[str, Any]) -> "Memory":
         return cls(
-            content=data['content'],
-            metadata=data.get('metadata', {}),
-            timestamp=datetime.fromisoformat(data['timestamp']),
-            relevance_score=data.get('relevance_score', 0.0)
+            content=data["content"],
+            metadata=data.get("metadata", {}),
+            timestamp=datetime.fromisoformat(data["timestamp"]),
+            relevance_score=data.get("relevance_score", 0.0),
         )
 
 
@@ -63,185 +68,229 @@ class VectorStore(ABC):
     @abstractmethod
     def add_memory(self, memory: Memory) -> str:
         pass
-    
+
     @abstractmethod
     def search(self, query_embedding: np.ndarray, k: int = 5) -> List[Memory]:
         pass
-    
+
     @abstractmethod
     def delete_memory(self, memory_id: str) -> bool:
         pass
 
 
 class MemoryEngine:
-    def __init__(self, vector_store: Optional[VectorStore] = None, embedding_provider: Optional['EmbeddingProvider'] = None, persist_path: Optional[str] = None):
+    def __init__(
+        self,
+        vector_store: Optional[VectorStore] = None,
+        embedding_provider: Optional["EmbeddingProvider"] = None,
+        persist_path: Optional[str] = None,
+    ):
         self.vector_store = vector_store
         self.embedding_provider = embedding_provider
         self.persist_path = persist_path
         self.memories: List[Memory] = []
         self.logger = get_logger("memory_engine")
-        
-        self.logger.info("Initializing MemoryEngine", extra={
-            "vector_store_type": type(vector_store).__name__ if vector_store else None,
-            "embedding_provider_type": type(embedding_provider).__name__ if embedding_provider else None,
-            "persist_path": persist_path
-        })
-        
+
+        self.logger.info(
+            "Initializing MemoryEngine",
+            extra={
+                "vector_store_type": (
+                    type(vector_store).__name__ if vector_store else None
+                ),
+                "embedding_provider_type": (
+                    type(embedding_provider).__name__ if embedding_provider else None
+                ),
+                "persist_path": persist_path,
+            },
+        )
+
         # Load existing memories if persist path is provided
         if self.persist_path:
             self.load_memories()
-        
+
     @monitor_performance("add_memory")
-    def add_memory(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> Memory:
-        self.logger.debug("Adding new memory", extra={
-            "content_length": len(content),
-            "metadata_keys": list((metadata or {}).keys())
-        })
-        
-        memory = Memory(
-            content=content,
-            metadata=metadata or {}
+    def add_memory(
+        self, content: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Memory:
+        self.logger.debug(
+            "Adding new memory",
+            extra={
+                "content_length": len(content),
+                "metadata_keys": list((metadata or {}).keys()),
+            },
         )
-        
+
+        memory = Memory(content=content, metadata=metadata or {})
+
         # Generate embedding if embedding provider is available
         if self.embedding_provider:
             self.logger.debug("Generating embedding for memory")
             memory.embedding = self.embedding_provider.embed_text(content)
-        
+
         self.memories.append(memory)
-        
+
         if self.vector_store and memory.embedding is not None:
             self.logger.debug("Adding memory to vector store")
             self.vector_store.add_memory(memory)
-        
+
         # Save to persistent storage
         if self.persist_path:
             self.logger.debug("Persisting memories to storage")
             self.save_memories()
-        
-        log_memory_operation("add", content_length=len(content), total_memories=len(self.memories))
-        self.logger.info("Memory added successfully", extra={
-            "memory_index": len(self.memories) - 1,
-            "total_memories": len(self.memories)
-        })
-            
+
+        log_memory_operation(
+            "add", content_length=len(content), total_memories=len(self.memories)
+        )
+        self.logger.info(
+            "Memory added successfully",
+            extra={
+                "memory_index": len(self.memories) - 1,
+                "total_memories": len(self.memories),
+            },
+        )
+
         return memory
-    
+
     @monitor_performance("search_memories")
     def search_memories(self, query: str, k: int = 5) -> List[Memory]:
-        self.logger.debug("Searching memories", extra={
-            "query_length": len(query),
-            "k": k,
-            "total_memories": len(self.memories)
-        })
-        
+        self.logger.debug(
+            "Searching memories",
+            extra={
+                "query_length": len(query),
+                "k": k,
+                "total_memories": len(self.memories),
+            },
+        )
+
         if not self.vector_store or not self.embedding_provider:
-            self.logger.warning("No vector store or embedding provider, falling back to recent memories")
+            self.logger.warning(
+                "No vector store or embedding provider, falling back to recent memories"
+            )
             return self.get_recent_memories(k)
-        
+
         # Generate embedding for the query
         self.logger.debug("Generating query embedding")
         query_embedding = self.embedding_provider.embed_text(query)
-        
+
         # Search using the vector store
         self.logger.debug("Performing vector search")
         results = self.vector_store.search(query_embedding, k)
-        
-        log_memory_operation("search", query_length=len(query), results_count=len(results))
-        self.logger.info("Memory search completed", extra={
-            "query_length": len(query),
-            "results_count": len(results),
-            "k": k
-        })
-        
+
+        log_memory_operation(
+            "search", query_length=len(query), results_count=len(results)
+        )
+        self.logger.info(
+            "Memory search completed",
+            extra={"query_length": len(query), "results_count": len(results), "k": k},
+        )
+
         return results
-    
+
     def get_recent_memories(self, n: int = 10) -> List[Memory]:
         return sorted(self.memories, key=lambda m: m.timestamp, reverse=True)[:n]
-    
+
     def clear_memories(self) -> None:
         memory_count = len(self.memories)
         self.logger.info("Clearing all memories", extra={"memory_count": memory_count})
-        
+
         self.memories.clear()
         if self.persist_path:
             self.save_memories()
-        
+
         log_memory_operation("clear", memory_count=memory_count)
         self.logger.info("All memories cleared successfully")
-    
+
     def save_memories(self) -> None:
         """Save memories to persistent storage"""
         if not self.persist_path:
             return
-        
+
         try:
-            self.logger.debug("Saving memories to persistent storage", extra={
-                "persist_path": self.persist_path,
-                "memory_count": len(self.memories)
-            })
-            
+            self.logger.debug(
+                "Saving memories to persistent storage",
+                extra={
+                    "persist_path": self.persist_path,
+                    "memory_count": len(self.memories),
+                },
+            )
+
             # Create directory if it doesn't exist
             Path(self.persist_path).parent.mkdir(parents=True, exist_ok=True)
-            
+
             # Convert memories to serializable format
             memories_data = [memory.to_dict() for memory in self.memories]
-            
+
             # Save to JSON file
-            with open(self.persist_path, 'w') as f:
+            with open(self.persist_path, "w") as f:
                 json.dump(memories_data, f, indent=2)
-            
-            self.logger.info("Memories saved successfully", extra={
-                "persist_path": self.persist_path,
-                "memory_count": len(self.memories)
-            })
-            
+
+            self.logger.info(
+                "Memories saved successfully",
+                extra={
+                    "persist_path": self.persist_path,
+                    "memory_count": len(self.memories),
+                },
+            )
+
         except Exception as e:
-            self.logger.error("Failed to save memories", extra={
-                "persist_path": self.persist_path,
-                "error": str(e)
-            }, exc_info=True)
+            self.logger.error(
+                "Failed to save memories",
+                extra={"persist_path": self.persist_path, "error": str(e)},
+                exc_info=True,
+            )
             raise
-    
+
     def load_memories(self) -> None:
         """Load memories from persistent storage"""
         if not self.persist_path or not os.path.exists(self.persist_path):
-            self.logger.info("No existing memories to load", extra={"persist_path": self.persist_path})
+            self.logger.info(
+                "No existing memories to load",
+                extra={"persist_path": self.persist_path},
+            )
             return
-        
+
         try:
-            self.logger.info("Loading memories from persistent storage", extra={
-                "persist_path": self.persist_path
-            })
-            
-            with open(self.persist_path, 'r') as f:
+            self.logger.info(
+                "Loading memories from persistent storage",
+                extra={"persist_path": self.persist_path},
+            )
+
+            with open(self.persist_path, "r") as f:
                 memories_data = json.load(f)
-            
+
             # Recreate Memory objects
             self.memories = [Memory.from_dict(data) for data in memories_data]
-            
+
             # Re-add to vector store if available
             if self.vector_store and self.embedding_provider:
                 self.logger.debug("Re-adding memories to vector store")
                 for memory in self.memories:
                     if memory.embedding is None:
-                        self.logger.debug("Generating missing embedding for loaded memory")
-                        memory.embedding = self.embedding_provider.embed_text(memory.content)
+                        self.logger.debug(
+                            "Generating missing embedding for loaded memory"
+                        )
+                        memory.embedding = self.embedding_provider.embed_text(
+                            memory.content
+                        )
                     self.vector_store.add_memory(memory)
-            
+
             log_memory_operation("load", memory_count=len(self.memories))
-            self.logger.info("Memories loaded successfully", extra={
-                "memory_count": len(self.memories),
-                "persist_path": self.persist_path
-            })
-                    
+            self.logger.info(
+                "Memories loaded successfully",
+                extra={
+                    "memory_count": len(self.memories),
+                    "persist_path": self.persist_path,
+                },
+            )
+
         except Exception as e:
-            self.logger.error("Error loading memories", extra={
-                "persist_path": self.persist_path,
-                "error": str(e)
-            }, exc_info=True)
+            self.logger.error(
+                "Error loading memories",
+                extra={"persist_path": self.persist_path, "error": str(e)},
+                exc_info=True,
+            )
             self.memories = []
-    
+
     def get_memory_stats(self) -> Dict[str, Any]:
         """Get comprehensive memory statistics"""
         if not self.memories:
@@ -250,23 +299,23 @@ class MemoryEngine:
                 "oldest_memory": None,
                 "newest_memory": None,
                 "memory_types": {},
-                "average_content_length": 0
+                "average_content_length": 0,
             }
-        
+
         sorted_memories = sorted(self.memories, key=lambda m: m.timestamp)
         memory_types = {}
         total_content_length = 0
-        
+
         for memory in self.memories:
             memory_type = memory.metadata.get("type", "unknown")
             memory_types[memory_type] = memory_types.get(memory_type, 0) + 1
             total_content_length += len(memory.content)
-        
+
         return {
             "total_memories": len(self.memories),
             "oldest_memory": sorted_memories[0].timestamp,
             "newest_memory": sorted_memories[-1].timestamp,
             "memory_types": memory_types,
             "average_content_length": total_content_length / len(self.memories),
-            "total_content_length": total_content_length
+            "total_content_length": total_content_length,
         }

@@ -11,11 +11,11 @@ from storage.chroma_store import ChromaVectorStore
 
 class MockEmbeddingProvider(EmbeddingProvider):
     """Mock embedding provider for testing"""
-    
+
     def embed_text(self, text):
         # Return a simple hash-based embedding for testing
-        return np.array([hash(text) % 1000 for _ in range(10)], dtype='float32')
-    
+        return np.array([hash(text) % 1000 for _ in range(10)], dtype="float32")
+
     def embed_batch(self, texts):
         return [self.embed_text(text) for text in texts]
 
@@ -32,7 +32,7 @@ def sample_memory():
     return Memory(
         content="Test memory content",
         metadata={"type": "test", "category": "sample"},
-        relevance_score=0.8
+        relevance_score=0.8,
     )
 
 
@@ -49,7 +49,7 @@ def sample_memories():
 @pytest.fixture
 def temp_file():
     """Provides a temporary file path for testing persistence"""
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.json') as f:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".json") as f:
         temp_path = f.name
     yield temp_path
     # Cleanup
@@ -77,7 +77,7 @@ def memory_engine(mock_embedding_provider, temp_file):
     return MemoryEngine(
         vector_store=faiss_store,
         embedding_provider=mock_embedding_provider,
-        persist_path=temp_file
+        persist_path=temp_file,
     )
 
 
@@ -85,17 +85,17 @@ def memory_engine(mock_embedding_provider, temp_file):
 def mock_openai_client():
     """Mock OpenAI client for testing"""
     mock_client = Mock()
-    
+
     # Mock chat completion response
     mock_response = Mock()
     mock_response.choices = [Mock()]
     mock_response.choices[0].message.content = "Mock AI response"
     mock_client.chat.completions.create.return_value = mock_response
-    
+
     # Mock embedding response
     mock_embedding_response = Mock()
     mock_embedding_response.data = [Mock()]
     mock_embedding_response.data[0].embedding = [0.1] * 1536
     mock_client.embeddings.create.return_value = mock_embedding_response
-    
+
     return mock_client

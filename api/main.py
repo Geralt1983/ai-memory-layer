@@ -1,6 +1,7 @@
 """
 FastAPI REST API for AI Memory Layer
 """
+
 import os
 from typing import List, Optional
 from datetime import datetime
@@ -20,10 +21,19 @@ from storage.chroma_store import ChromaVectorStore
 from integrations.embeddings import OpenAIEmbeddings
 from integrations.openai_integration import OpenAIIntegration
 from .models import (
-    MemoryCreate, MemoryResponse, ChatRequest, ChatResponse,
-    SearchRequest, SearchResponse, HealthResponse, ErrorResponse,
-    CleanupRequest, CleanupResponse, ArchiveListResponse, ExportRequest,
-    MemoryStatsResponse
+    MemoryCreate,
+    MemoryResponse,
+    ChatRequest,
+    ChatResponse,
+    SearchRequest,
+    SearchResponse,
+    HealthResponse,
+    ErrorResponse,
+    CleanupRequest,
+    CleanupResponse,
+    ArchiveListResponse,
+    ExportRequest,
+    MemoryStatsResponse,
 )
 
 
@@ -47,79 +57,87 @@ async def lifespan(app: FastAPI):
 async def startup_event():
     """Initialize the memory system on startup"""
     global memory_engine, openai_integration, memory_manager
-    
+
     try:
         logger.info("Starting AI Memory Layer API initialization")
-        
+
         # Get configuration from environment
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is required")
-        
+
         vector_store_type = os.getenv("VECTOR_STORE_TYPE", "faiss").lower()
         persist_directory = os.getenv("PERSIST_DIRECTORY", "./data")
-        memory_persist_path = os.getenv("MEMORY_PERSIST_PATH", f"{persist_directory}/memories.json")
-        
-        logger.info("Configuration loaded", extra={
-            "vector_store_type": vector_store_type,
-            "persist_directory": persist_directory,
-            "memory_persist_path": memory_persist_path
-        })
-        
+        memory_persist_path = os.getenv(
+            "MEMORY_PERSIST_PATH", f"{persist_directory}/memories.json"
+        )
+
+        logger.info(
+            "Configuration loaded",
+            extra={
+                "vector_store_type": vector_store_type,
+                "persist_directory": persist_directory,
+                "memory_persist_path": memory_persist_path,
+            },
+        )
+
         # Initialize embedding provider
         embedding_provider = OpenAIEmbeddings(
             api_key=api_key,
-            model=os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002")
+            model=os.getenv("EMBEDDING_MODEL", "text-embedding-ada-002"),
         )
-        
+
         # Initialize vector store
         if vector_store_type == "chroma":
             vector_store = ChromaVectorStore(
                 collection_name="ai_memory_api",
-                persist_directory=f"{persist_directory}/chroma_db"
+                persist_directory=f"{persist_directory}/chroma_db",
             )
         else:  # Default to FAISS
             vector_store = FaissVectorStore(
-                dimension=1536,
-                index_path=f"{persist_directory}/faiss_index"
+                dimension=1536, index_path=f"{persist_directory}/faiss_index"
             )
-        
+
         # Initialize memory engine
         memory_engine = MemoryEngine(
             vector_store=vector_store,
             embedding_provider=embedding_provider,
-            persist_path=memory_persist_path
+            persist_path=memory_persist_path,
         )
-        
+
         # Initialize OpenAI integration
         openai_integration = OpenAIIntegration(
             api_key=api_key,
             memory_engine=memory_engine,
-            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
         )
-        
+
         # Initialize memory manager
         memory_manager = create_default_memory_manager(memory_engine)
-        
-        logger.info("Memory system initialized successfully", extra={
-            "vector_store_type": vector_store_type,
-            "existing_memories": len(memory_engine.memories)
-        })
-        
+
+        logger.info(
+            "Memory system initialized successfully",
+            extra={
+                "vector_store_type": vector_store_type,
+                "existing_memories": len(memory_engine.memories),
+            },
+        )
+
     except Exception as e:
-        logger.error("Failed to initialize memory system", extra={"error": str(e)}, exc_info=True)
+        logger.error(
+            "Failed to initialize memory system", extra={"error": str(e)}, exc_info=True
+        )
         raise
 
 
 async def shutdown_event():
     """Cleanup on shutdown"""
-    global memory_engine
     logger.info("API shutdown initiated")
-    
+
     if memory_engine and memory_engine.persist_path:
         memory_engine.save_memories()
         logger.info("Memories saved on shutdown")
-    
+
     logger.info("API shutdown completed")
 
 
@@ -128,38 +146,43 @@ app = FastAPI(
     title="AI Memory Layer API",
     description="REST API for managing AI conversation memory and context",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
+
 
 # Add request logging middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start_time = time.time()
-    
+
     # Log request start
-    logger.debug("Request started", extra={
-        "method": request.method,
-        "path": request.url.path,
-        "query": str(request.query_params),
-        "client_ip": request.client.host if request.client else None
-    })
-    
+    logger.debug(
+        "Request started",
+        extra={
+            "method": request.method,
+            "path": request.url.path,
+            "query": str(request.query_params),
+            "client_ip": request.client.host if request.client else None,
+        },
+    )
+
     # Process request
     response = await call_next(request)
-    
+
     # Calculate response time
     response_time = time.time() - start_time
-    
+
     # Log request completion
     log_api_request(
         method=request.method,
         path=request.url.path,
         status_code=response.status_code,
         response_time=response_time,
-        client_ip=request.client.host if request.client else None
+        client_ip=request.client.host if request.client else None,
     )
-    
+
     return response
+
 
 # Add CORS middleware
 app.add_middleware(
@@ -176,7 +199,7 @@ def get_memory_engine() -> MemoryEngine:
     if not memory_engine:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Memory engine not initialized"
+            detail="Memory engine not initialized",
         )
     return memory_engine
 
@@ -186,7 +209,7 @@ def get_openai_integration() -> OpenAIIntegration:
     if not openai_integration:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="OpenAI integration not initialized"
+            detail="OpenAI integration not initialized",
         )
     return openai_integration
 
@@ -196,7 +219,7 @@ def get_memory_manager() -> MemoryManager:
     if not memory_manager:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Memory manager not initialized"
+            detail="Memory manager not initialized",
         )
     return memory_manager
 
@@ -206,10 +229,7 @@ def get_memory_manager() -> MemoryManager:
 async def general_exception_handler(request, exc):
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content=ErrorResponse(
-            error="Internal server error",
-            detail=str(exc)
-        ).dict()
+        content=ErrorResponse(error="Internal server error", detail=str(exc)).dict(),
     )
 
 
@@ -218,22 +238,23 @@ async def general_exception_handler(request, exc):
 async def health_check(engine: MemoryEngine = Depends(get_memory_engine)):
     """Health check endpoint"""
     vector_store_type = None
-    if hasattr(engine.vector_store, '__class__'):
+    if hasattr(engine.vector_store, "__class__"):
         vector_store_type = engine.vector_store.__class__.__name__
-    
+
     return HealthResponse(
         status="healthy",
         timestamp=datetime.now(),
         memory_count=len(engine.memories),
-        vector_store_type=vector_store_type
+        vector_store_type=vector_store_type,
     )
 
 
 # Memory management endpoints
-@app.post("/memories", response_model=MemoryResponse, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/memories", response_model=MemoryResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_memory(
-    memory_data: MemoryCreate,
-    engine: MemoryEngine = Depends(get_memory_engine)
+    memory_data: MemoryCreate, engine: MemoryEngine = Depends(get_memory_engine)
 ):
     """Create a new memory"""
     try:
@@ -242,34 +263,33 @@ async def create_memory(
             content=memory.content,
             metadata=memory.metadata,
             timestamp=memory.timestamp,
-            relevance_score=memory.relevance_score
+            relevance_score=memory.relevance_score,
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to create memory: {str(e)}"
+            detail=f"Failed to create memory: {str(e)}",
         )
 
 
 @app.get("/memories", response_model=List[MemoryResponse])
 async def get_recent_memories(
-    n: int = 10,
-    engine: MemoryEngine = Depends(get_memory_engine)
+    n: int = 10, engine: MemoryEngine = Depends(get_memory_engine)
 ):
     """Get recent memories"""
     if n < 1 or n > 100:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Parameter 'n' must be between 1 and 100"
+            detail="Parameter 'n' must be between 1 and 100",
         )
-    
+
     memories = engine.get_recent_memories(n)
     return [
         MemoryResponse(
             content=memory.content,
             metadata=memory.metadata,
             timestamp=memory.timestamp,
-            relevance_score=memory.relevance_score
+            relevance_score=memory.relevance_score,
         )
         for memory in memories
     ]
@@ -277,8 +297,7 @@ async def get_recent_memories(
 
 @app.post("/memories/search", response_model=SearchResponse)
 async def search_memories(
-    search_data: SearchRequest,
-    engine: MemoryEngine = Depends(get_memory_engine)
+    search_data: SearchRequest, engine: MemoryEngine = Depends(get_memory_engine)
 ):
     """Search memories by content similarity"""
     try:
@@ -289,16 +308,16 @@ async def search_memories(
                     content=memory.content,
                     metadata=memory.metadata,
                     timestamp=memory.timestamp,
-                    relevance_score=memory.relevance_score
+                    relevance_score=memory.relevance_score,
                 )
                 for memory in memories
             ],
-            total_count=len(memories)
+            total_count=len(memories),
         )
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to search memories: {str(e)}"
+            detail=f"Failed to search memories: {str(e)}",
         )
 
 
@@ -310,15 +329,14 @@ async def clear_memories(engine: MemoryEngine = Depends(get_memory_engine)):
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to clear memories: {str(e)}"
+            detail=f"Failed to clear memories: {str(e)}",
         )
 
 
 # Chat endpoints
 @app.post("/chat", response_model=ChatResponse)
 async def chat_with_memory(
-    chat_data: ChatRequest,
-    ai: OpenAIIntegration = Depends(get_openai_integration)
+    chat_data: ChatRequest, ai: OpenAIIntegration = Depends(get_openai_integration)
 ):
     """Chat with AI using memory context"""
     try:
@@ -327,28 +345,26 @@ async def chat_with_memory(
             system_prompt=chat_data.system_prompt,
             include_recent=chat_data.include_recent,
             include_relevant=chat_data.include_relevant,
-            remember_response=chat_data.remember_response
+            remember_response=chat_data.remember_response,
         )
-        
+
         # Get context for response (optional)
         context = None
         try:
             context = ai.context_builder.build_context(
                 query=chat_data.message,
                 include_recent=chat_data.include_recent,
-                include_relevant=chat_data.include_relevant
+                include_relevant=chat_data.include_relevant,
             )
-        except:
+        except Exception:
             pass  # Context is optional
-        
+
         return ChatResponse(
-            response=response,
-            context_used=context if context else None
+            response=response, context_used=context if context else None
         )
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Chat failed: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Chat failed: {str(e)}"
         )
 
 
@@ -357,32 +373,34 @@ async def chat_with_memory(
 async def get_stats(engine: MemoryEngine = Depends(get_memory_engine)):
     """Get memory statistics"""
     memories = engine.memories
-    
+
     # Basic stats
     stats = {
         "total_memories": len(memories),
         "vector_store_entries": 0,
         "memory_types": {},
         "oldest_memory": None,
-        "newest_memory": None
+        "newest_memory": None,
     }
-    
+
     # Vector store stats
-    if engine.vector_store and hasattr(engine.vector_store, 'index'):
-        if hasattr(engine.vector_store.index, 'ntotal'):
+    if engine.vector_store and hasattr(engine.vector_store, "index"):
+        if hasattr(engine.vector_store.index, "ntotal"):
             stats["vector_store_entries"] = engine.vector_store.index.ntotal
-    
+
     if memories:
         # Memory type distribution
         for memory in memories:
             memory_type = memory.metadata.get("type", "unknown")
-            stats["memory_types"][memory_type] = stats["memory_types"].get(memory_type, 0) + 1
-        
+            stats["memory_types"][memory_type] = (
+                stats["memory_types"].get(memory_type, 0) + 1
+            )
+
         # Oldest and newest
         sorted_memories = sorted(memories, key=lambda m: m.timestamp)
         stats["oldest_memory"] = sorted_memories[0].timestamp
         stats["newest_memory"] = sorted_memories[-1].timestamp
-    
+
     return stats
 
 
@@ -396,44 +414,41 @@ async def get_memory_stats(engine: MemoryEngine = Depends(get_memory_engine)):
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get memory stats: {str(e)}"
+            detail=f"Failed to get memory stats: {str(e)}",
         )
 
 
 @app.post("/memories/cleanup", response_model=CleanupResponse)
 async def cleanup_memories(
-    cleanup_data: CleanupRequest,
-    manager: MemoryManager = Depends(get_memory_manager)
+    cleanup_data: CleanupRequest, manager: MemoryManager = Depends(get_memory_manager)
 ):
     """Clean up memories using specified criteria"""
     try:
         stats = manager.auto_cleanup(
             max_memories=cleanup_data.max_memories,
             max_age_days=cleanup_data.max_age_days,
-            min_relevance=cleanup_data.min_relevance
+            min_relevance=cleanup_data.min_relevance,
         )
-        
+
         # Override with dry_run if requested
         if cleanup_data.dry_run:
             # Run cleanup again as dry run to get preview
             stats = manager.cleanup_memories(
-                archive_before_cleanup=cleanup_data.archive_before_cleanup,
-                dry_run=True
+                archive_before_cleanup=cleanup_data.archive_before_cleanup, dry_run=True
             )
-        
+
         return CleanupResponse(
             memories_before=stats.total_memories_before,
             memories_after=stats.total_memories_after,
             memories_cleaned=stats.memories_cleaned,
             memories_archived=stats.memories_archived,
             duration_ms=stats.duration_ms,
-            dry_run=cleanup_data.dry_run
+            dry_run=cleanup_data.dry_run,
         )
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Cleanup failed: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Cleanup failed: {str(e)}"
         )
 
 
@@ -443,81 +458,75 @@ async def list_archives(manager: MemoryManager = Depends(get_memory_manager)):
     try:
         archives = manager.archiver.list_archives()
         archive_data = []
-        
+
         for archive in archives:
-            archive_data.append({
-                "archive_path": archive.archive_path,
-                "created_at": archive.created_at,
-                "memory_count": archive.memory_count,
-                "size_bytes": archive.size_bytes,
-                "criteria": archive.criteria
-            })
-        
-        return ArchiveListResponse(
-            archives=archive_data,
-            total_count=len(archive_data)
-        )
-        
+            archive_data.append(
+                {
+                    "archive_path": archive.archive_path,
+                    "created_at": archive.created_at,
+                    "memory_count": archive.memory_count,
+                    "size_bytes": archive.size_bytes,
+                    "criteria": archive.criteria,
+                }
+            )
+
+        return ArchiveListResponse(archives=archive_data, total_count=len(archive_data))
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list archives: {str(e)}"
+            detail=f"Failed to list archives: {str(e)}",
         )
 
 
 @app.post("/memories/export")
 async def export_memories(
-    export_data: ExportRequest,
-    manager: MemoryManager = Depends(get_memory_manager)
+    export_data: ExportRequest, manager: MemoryManager = Depends(get_memory_manager)
 ):
     """Export memories to specified format"""
     try:
         from fastapi.responses import FileResponse
         import tempfile
-        
+
         # Create filter function based on request
         def memory_filter(memory):
             # Filter by type
             if export_data.filter_type:
                 if memory.metadata.get("type") != export_data.filter_type:
                     return False
-            
+
             # Filter by date range
             if export_data.start_date and memory.timestamp < export_data.start_date:
                 return False
             if export_data.end_date and memory.timestamp > export_data.end_date:
                 return False
-            
+
             return True
-        
+
         # Create temporary file
         with tempfile.NamedTemporaryFile(
-            delete=False, 
-            suffix=f".{export_data.format}",
-            mode='w'
+            delete=False, suffix=f".{export_data.format}", mode="w"
         ) as temp_file:
             temp_path = temp_file.name
-        
+
         # Export memories
         manager.export_memories(
-            temp_path,
-            format=export_data.format,
-            filter_func=memory_filter
+            temp_path, format=export_data.format, filter_func=memory_filter
         )
-        
+
         # Return file
-        filename = f"memories_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{export_data.format}"
-        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"memories_export_{timestamp}.{export_data.format}"
+
         return FileResponse(
             path=temp_path,
             filename=filename,
-            media_type=f"application/{export_data.format}"
+            media_type=f"application/{export_data.format}",
         )
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Export failed: {str(e)}"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=f"Export failed: {str(e)}"
         )
 
 
@@ -525,68 +534,64 @@ async def export_memories(
 async def restore_archive(
     archive_name: str,
     manager: MemoryManager = Depends(get_memory_manager),
-    engine: MemoryEngine = Depends(get_memory_engine)
+    engine: MemoryEngine = Depends(get_memory_engine),
 ):
     """Restore memories from an archive"""
     try:
         # Find archive by name
         archives = manager.archiver.list_archives()
         archive_path = None
-        
+
         for archive in archives:
             if archive_name in archive.archive_path:
                 archive_path = archive.archive_path
                 break
-        
+
         if not archive_path:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Archive '{archive_name}' not found"
+                detail=f"Archive '{archive_name}' not found",
             )
-        
+
         # Load memories from archive
         archived_memories = manager.archiver.load_archive(archive_path)
-        
+
         # Add memories back to engine
         restored_count = 0
         for memory in archived_memories:
             # Check if memory already exists to avoid duplicates
             existing = any(
-                m.content == memory.content and 
-                abs((m.timestamp - memory.timestamp).total_seconds()) < 1
+                m.content == memory.content
+                and abs((m.timestamp - memory.timestamp).total_seconds()) < 1
                 for m in engine.memories
             )
-            
+
             if not existing:
                 engine.memories.append(memory)
                 restored_count += 1
-        
+
         # Save updated memories
         if engine.persist_path:
             engine.save_memories()
-        
+
         return {
             "message": f"Successfully restored {restored_count} memories from archive",
             "archive_path": archive_path,
             "memories_restored": restored_count,
-            "total_memories": len(engine.memories)
+            "total_memories": len(engine.memories),
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Archive restoration failed: {str(e)}"
+            detail=f"Archive restoration failed: {str(e)}",
         )
 
 
 # Development server runner
 if __name__ == "__main__":
     uvicorn.run(
-        "api.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
+        "api.main:app", host="0.0.0.0", port=8000, reload=True, log_level="info"
     )

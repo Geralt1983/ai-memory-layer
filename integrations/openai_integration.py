@@ -1,19 +1,19 @@
 from typing import List, Dict, Any, Optional
 from openai import OpenAI
 import numpy as np
-from ..core.memory_engine import Memory, MemoryEngine
-from ..core.context_builder import ContextBuilder
-from ..core.logging_config import get_logger, monitor_performance
+from core.memory_engine import Memory, MemoryEngine
+from core.context_builder import ContextBuilder
+from core.logging_config import get_logger, monitor_performance
 from .embeddings import OpenAIEmbeddings
 
 
 class OpenAIIntegration:
     def __init__(
-        self, 
+        self,
         api_key: str,
         memory_engine: MemoryEngine,
         model: str = "gpt-3.5-turbo",
-        embedding_model: str = "text-embedding-ada-002"
+        embedding_model: str = "text-embedding-ada-002",
     ):
         self.client = OpenAI(api_key=api_key)
         self.model = model
@@ -21,99 +21,179 @@ class OpenAIIntegration:
         self.embeddings = OpenAIEmbeddings(api_key, embedding_model)
         self.context_builder = ContextBuilder(memory_engine)
         self.logger = get_logger("openai_integration")
+
+        self.logger.info(
+            "OpenAI integration initialized",
+            extra={"model": model, "embedding_model": embedding_model},
+        )
+
+    def _extract_user_preferences(self) -> str:
+        """Extract user preferences and behavior guidance from memory"""
+        # Search for preference-related memories
+        preference_queries = ["prefer", "like", "want you to", "style", "tone", "avoid", "don't"]
+        preferences = []
         
-        self.logger.info("OpenAI integration initialized", extra={
-            "model": model,
-            "embedding_model": embedding_model
-        })
+        for query in preference_queries:
+            memories = self.memory_engine.search_memories(query, k=3)
+            for memory in memories:
+                if memory.relevance_score > 0.6:  # Only include relevant preferences
+                    # Check if it's a user message (preferences are usually from user)
+                    if (memory.metadata.get("type") == "user_message" or 
+                        "User:" in memory.content):
+                        preferences.append(memory.content)
+        
+        if preferences:
+            return "\n".join(set(preferences))  # Remove duplicates
+        return ""
     
+    def _build_system_prompt(self, user_preferences: str, context: str) -> str:
+        """Build an enhanced system prompt with user preferences and context"""
+        base_prompt = """You are an AI assistant with persistent memory. You remember past conversations and MUST adapt your responses based on the user's explicitly stated preferences and feedback."""
+        
+        prompt_parts = [base_prompt]
+        
+        if user_preferences:
+            prompt_parts.append(f"""
+## CRITICAL USER PREFERENCES - MUST FOLLOW:
+{user_preferences}
+
+⚠️ MANDATORY: The user has explicitly told you how they want you to communicate. You MUST follow these preferences strictly:
+- If they want you to be "direct" - be direct, not verbose
+- If they want you to be "less cheery" - be more neutral/serious
+- If they want "human-like" responses - avoid AI-like formatting and be conversational
+- If they said "avoid generic answers" - give specific, personalized responses
+- If they called responses "canned" - be more natural and spontaneous
+
+IGNORE your default response style and adapt completely to their stated preferences.""")
+        
+        if context:
+            prompt_parts.append(f"""
+## Relevant Context from Past Conversations:
+{context}
+
+Use this context to personalize your response and reference relevant past interactions.""")
+        
+        prompt_parts.append("""
+## RESPONSE REQUIREMENTS:
+1. FIRST check user preferences above and adapt your entire response style accordingly
+2. Reference the user's past conversations and stated preferences
+3. Be authentic and avoid generic, templated responses  
+4. If the user has corrected your behavior before, remember and apply those corrections
+5. Make your response feel natural and personalized to this specific user
+
+Remember: The user has a memory system specifically so you can learn their preferences and adapt. USE IT.""")
+        
+        return "\n".join(prompt_parts)
+
     @monitor_performance("chat_with_memory")
     def chat_with_memory(
-        self, 
+        self,
         message: str,
         system_prompt: Optional[str] = None,
         include_recent: int = 5,
         include_relevant: int = 5,
-        remember_response: bool = True
+        remember_response: bool = True,
     ) -> str:
-        self.logger.info("Starting chat with memory", extra={
-            "message_length": len(message),
-            "include_recent": include_recent,
-            "include_relevant": include_relevant,
-            "remember_response": remember_response,
-            "has_system_prompt": system_prompt is not None
-        })
+        self.logger.info(
+            "Starting chat with memory",
+            extra={
+                "message_length": len(message),
+                "include_recent": include_recent,
+                "include_relevant": include_relevant,
+                "remember_response": remember_response,
+                "has_system_prompt": system_prompt is not None,
+            },
+        )
+
+        # Extract user preferences from memory
+        self.logger.debug("Extracting user preferences from memory")
+        user_preferences = self._extract_user_preferences()
         
         # Build context from memory
         self.logger.debug("Building context from memory")
         context = self.context_builder.build_context(
             query=message,
             include_recent=include_recent,
-            include_relevant=include_relevant
+            include_relevant=include_relevant,
         )
-        
-        # Prepare messages
+
+        # Prepare messages with enhanced system prompt
         messages = []
+        
         if system_prompt:
+            # Use provided system prompt
             messages.append({"role": "system", "content": system_prompt})
-        
-        if context:
-            messages.append({"role": "system", "content": f"Previous context:\n{context}"})
-            self.logger.debug("Context added to messages", extra={"context_length": len(context)})
-        
+        else:
+            # Build enhanced system prompt with preferences and context
+            enhanced_system_prompt = self._build_system_prompt(user_preferences, context)
+            messages.append({"role": "system", "content": enhanced_system_prompt})
+            self.logger.debug(
+                "Enhanced system prompt created", 
+                extra={
+                    "has_preferences": bool(user_preferences),
+                    "context_length": len(context) if context else 0
+                }
+            )
+
         messages.append({"role": "user", "content": message})
-        
+
         # Get response from OpenAI
-        self.logger.debug("Sending request to OpenAI", extra={
-            "model": self.model,
-            "message_count": len(messages)
-        })
-        
+        self.logger.debug(
+            "Sending request to OpenAI",
+            extra={"model": self.model, "message_count": len(messages)},
+        )
+
         try:
             response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages
+                model=self.model, messages=messages
             )
-            
+
             answer = response.choices[0].message.content
-            
-            self.logger.info("OpenAI response received", extra={
-                "response_length": len(answer) if answer else 0,
-                "model": self.model
-            })
-            
+
+            self.logger.info(
+                "OpenAI response received",
+                extra={
+                    "response_length": len(answer) if answer else 0,
+                    "model": self.model,
+                },
+            )
+
         except Exception as e:
-            self.logger.error("Failed to get OpenAI response", extra={
-                "error": str(e),
-                "model": self.model
-            }, exc_info=True)
+            self.logger.error(
+                "Failed to get OpenAI response",
+                extra={"error": str(e), "model": self.model},
+                exc_info=True,
+            )
             raise
-        
+
         # Store the interaction in memory
         if remember_response:
             self.logger.debug("Storing conversation in memory")
-            
+
             # Store user message (MemoryEngine will handle embedding generation)
             self.memory_engine.add_memory(
-                f"User: {message}",
-                metadata={"type": "user_message"}
+                f"User: {message}", metadata={"type": "user_message"}
             )
-            
+
             # Store assistant response (MemoryEngine will handle embedding generation)
             self.memory_engine.add_memory(
-                f"Assistant: {answer}",
-                metadata={"type": "assistant_response"}
+                f"Assistant: {answer}", metadata={"type": "assistant_response"}
             )
-            
+
             self.logger.debug("Conversation stored in memory successfully")
-        
-        self.logger.info("Chat with memory completed successfully", extra={
-            "message_length": len(message),
-            "response_length": len(answer) if answer else 0
-        })
-        
+
+        self.logger.info(
+            "Chat with memory completed successfully",
+            extra={
+                "message_length": len(message),
+                "response_length": len(answer) if answer else 0,
+            },
+        )
+
         return answer
-    
-    def add_memory_with_embedding(self, content: str, metadata: Optional[Dict[str, Any]] = None) -> Memory:
+
+    def add_memory_with_embedding(
+        self, content: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> Memory:
         # MemoryEngine now handles embedding generation internally
         return self.memory_engine.add_memory(content, metadata)
