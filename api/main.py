@@ -590,6 +590,71 @@ async def restore_archive(
         )
 
 
+@app.post("/conversations/generate-title")
+async def generate_conversation_title(
+    request: dict, ai: OpenAIIntegration = Depends(get_openai_integration)
+):
+    """Generate a concise title for a conversation based on its messages"""
+    try:
+        messages = request.get("messages", [])
+        if not messages:
+            return {"title": "New Chat"}
+        
+        # Take the first few messages to generate a title
+        context_messages = messages[:6]  # First 3 exchanges (user + assistant)
+        conversation_text = "\n".join([
+            f"{msg.get('sender', 'unknown')}: {msg.get('content', '')}" 
+            for msg in context_messages
+        ])
+        
+        # Use OpenAI to generate a concise title
+        title_prompt = f"""Based on this conversation, generate a concise 2-4 word title that captures the main topic. Be specific and descriptive, not generic.
+
+Conversation:
+{conversation_text}
+
+Generate only the title, nothing else. Examples of good titles:
+- "Python vs Rust"
+- "AI Ethics Discussion" 
+- "React Hook Problems"
+- "Startup Funding Strategy"
+
+Title:"""
+
+        response = ai.client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "user", "content": title_prompt}],
+            max_tokens=10,
+            temperature=0.3
+        )
+        
+        title = response.choices[0].message.content.strip()
+        # Clean up the title (remove quotes, etc.)
+        title = title.replace('"', '').replace("'", '').strip()
+        
+        # Fallback if title is too long or empty
+        if not title or len(title) > 50:
+            # Extract key terms from first user message
+            first_message = next((msg.get('content', '') for msg in messages if msg.get('sender') == 'user'), '')
+            if first_message:
+                words = first_message.split()[:4]
+                title = ' '.join(words).title()
+            else:
+                title = "New Chat"
+        
+        return {"title": title}
+        
+    except Exception as e:
+        logger.error(f"Failed to generate conversation title: {str(e)}")
+        # Fallback to first user message preview
+        first_user_msg = next((msg.get('content', '') for msg in messages if msg.get('sender') == 'user'), '')
+        if first_user_msg:
+            title = first_user_msg[:30] + "..." if len(first_user_msg) > 30 else first_user_msg
+        else:
+            title = "New Chat"
+        return {"title": title}
+
+
 # Development server runner
 if __name__ == "__main__":
     uvicorn.run(

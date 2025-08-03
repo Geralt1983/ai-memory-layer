@@ -80,8 +80,11 @@ Use this context to personalize your response and reference relevant past intera
 3. Be authentic and avoid generic, templated responses  
 4. If the user has corrected your behavior before, remember and apply those corrections
 5. Make your response feel natural and personalized to this specific user
+6. CRITICAL: If you already know information about the user from past conversations, USE that knowledge instead of asking again
+7. Don't ask questions about things you already know (like asking for names you already have)
+8. Build on existing knowledge rather than starting over
 
-Remember: The user has a memory system specifically so you can learn their preferences and adapt. USE IT.""")
+Remember: The user has a memory system specifically so you can learn their preferences and adapt. USE IT INTELLIGENTLY.""")
         
         return "\n".join(prompt_parts)
 

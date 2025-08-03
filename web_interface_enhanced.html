@@ -563,6 +563,7 @@
         let isConnected = false;
         let conversations = [];
         let currentConversationId = 'current';
+        let currentMessages = [];
         let isRecording = false;
         let recognition = null;
 
@@ -570,6 +571,7 @@
         async function init() {
             await checkConnection();
             await updateMemoryCount();
+            loadConversations();
             initVoiceRecognition();
             document.getElementById('messageInput').focus();
             
@@ -577,6 +579,59 @@
             const input = document.getElementById('messageInput');
             if (!input.value) {
                 input.classList.add('cursor-blink');
+            }
+        }
+
+        // Load conversations from localStorage
+        function loadConversations() {
+            const saved = localStorage.getItem('ai-memory-conversations');
+            console.log('Loading conversations from localStorage:', saved);
+            if (saved) {
+                conversations = JSON.parse(saved);
+                console.log('Loaded conversations:', conversations);
+                updateConversationsList();
+            }
+        }
+
+        // Save conversations to localStorage
+        function saveConversations() {
+            console.log('Saving conversations to localStorage:', conversations);
+            localStorage.setItem('ai-memory-conversations', JSON.stringify(conversations));
+        }
+
+        // Update conversations list in sidebar
+        function updateConversationsList() {
+            const container = document.getElementById('conversations');
+            container.innerHTML = '';
+            
+            conversations.forEach((conv, index) => {
+                const convDiv = document.createElement('div');
+                convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
+                convDiv.onclick = () => selectConversation(convDiv, conv.id);
+                
+                const timeStr = new Date(conv.lastMessage).toLocaleDateString([], {
+                    month: 'short',
+                    day: 'numeric'
+                });
+                
+                convDiv.innerHTML = `
+                    <div>${conv.title}</div>
+                    <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                `;
+                
+                container.appendChild(convDiv);
+            });
+            
+            // Add current chat if no conversations exist
+            if (conversations.length === 0) {
+                const currentDiv = document.createElement('div');
+                currentDiv.className = 'conversation-item active';
+                currentDiv.onclick = () => selectConversation(currentDiv, 'current');
+                currentDiv.innerHTML = `
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                `;
+                container.appendChild(currentDiv);
             }
         }
 
@@ -702,7 +757,11 @@
                     showTyping(false);
                     addMessage('assistant', data.response);
                     updateMemoryCount();
-                    updateConversationTitle(message);
+                    // Trigger title generation if this is one of the first few messages
+                    if (currentMessages.length <= 6) {
+                        console.log('Triggering title generation with', currentMessages.length, 'messages');
+                        generateConversationTitle();
+                    }
                 }, 1000);
                 
             } catch (error) {
@@ -732,6 +791,104 @@
             
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Track message for conversation history
+            currentMessages.push({
+                sender: sender,
+                content: content,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Generate title after we have enough context (2+ exchanges)
+            if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
+                console.log('Triggering title generation with', currentMessages.length, 'messages');
+                generateConversationTitle();
+            }
+        }
+
+        // Generate conversation title using AI
+        async function generateConversationTitle() {
+            try {
+                console.log('Generating title for messages:', currentMessages);
+                
+                const response = await fetch(`${API_BASE}/conversations/generate-title`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: currentMessages })
+                });
+                
+                console.log('Title generation response status:', response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Generated title:', data.title);
+                    const title = data.title || 'New Chat';
+                    
+                    // Update current conversation or create new one
+                    const existingConv = conversations.find(c => c.id === currentConversationId);
+                    if (existingConv) {
+                        existingConv.title = title;
+                        existingConv.lastMessage = new Date().toISOString();
+                    } else {
+                        // Create new conversation entry
+                        const newConv = {
+                            id: currentConversationId,
+                            title: title,
+                            messages: [...currentMessages],
+                            lastMessage: new Date().toISOString(),
+                            created: new Date().toISOString()
+                        };
+                        conversations.unshift(newConv);
+                    }
+                    
+                    saveConversations();
+                    updateConversationsList();
+                } else {
+                    const errorText = await response.text();
+                    console.error('Title generation failed:', response.status, errorText);
+                    
+                    // Fallback: Use first user message
+                    const firstUserMsg = currentMessages.find(m => m.sender === 'user');
+                    const fallbackTitle = firstUserMsg ? 
+                        (firstUserMsg.content.length > 30 ? 
+                            firstUserMsg.content.substring(0, 30) + '...' : 
+                            firstUserMsg.content) : 
+                        'New Chat';
+                    
+                    console.log('Using fallback title:', fallbackTitle);
+                    
+                    // Still save the conversation with fallback title
+                    const existingConv = conversations.find(c => c.id === currentConversationId);
+                    if (existingConv) {
+                        existingConv.title = fallbackTitle;
+                        existingConv.lastMessage = new Date().toISOString();
+                    } else {
+                        const newConv = {
+                            id: currentConversationId,
+                            title: fallbackTitle,
+                            messages: [...currentMessages],
+                            lastMessage: new Date().toISOString(),
+                            created: new Date().toISOString()
+                        };
+                        conversations.unshift(newConv);
+                    }
+                    
+                    saveConversations();
+                    updateConversationsList();
+                }
+            } catch (error) {
+                console.error('Failed to generate conversation title:', error);
+                
+                // Fallback on network error
+                const firstUserMsg = currentMessages.find(m => m.sender === 'user');
+                const fallbackTitle = firstUserMsg ? 
+                    (firstUserMsg.content.length > 30 ? 
+                        firstUserMsg.content.substring(0, 30) + '...' : 
+                        firstUserMsg.content) : 
+                    'New Chat';
+                
+                console.log('Using error fallback title:', fallbackTitle);
+            }
         }
 
         // Show/hide typing indicator
@@ -799,6 +956,29 @@
 
         // Conversation management
         function startNewChat() {
+            // Save current conversation if it has messages
+            if (currentMessages.length > 0) {
+                const existingConv = conversations.find(c => c.id === currentConversationId);
+                if (existingConv) {
+                    existingConv.messages = [...currentMessages];
+                    existingConv.lastMessage = new Date().toISOString();
+                } else {
+                    const newConv = {
+                        id: currentConversationId,
+                        title: currentMessages[0]?.content?.substring(0, 30) + '...' || 'New Chat',
+                        messages: [...currentMessages],
+                        lastMessage: new Date().toISOString(),
+                        created: new Date().toISOString()
+                    };
+                    conversations.unshift(newConv);
+                }
+                saveConversations();
+            }
+            
+            // Start fresh conversation
+            currentConversationId = 'conv_' + Date.now();
+            currentMessages = [];
+            
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
@@ -810,37 +990,79 @@
                 </div>
             `;
             
-            // Add new conversation to sidebar
-            const conversationsContainer = document.getElementById('conversations');
-            const newConv = document.createElement('div');
-            newConv.className = 'conversation-item active';
-            newConv.onclick = () => selectConversation(newConv);
-            newConv.innerHTML = `
-                <div>New Chat</div>
-                <div style="font-size: 12px; opacity: 0.7;">Just now</div>
-            `;
-            
-            // Remove active from others
-            document.querySelectorAll('.conversation-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            
-            conversationsContainer.insertBefore(newConv, conversationsContainer.firstChild);
+            updateConversationsList();
         }
 
-        function selectConversation(element) {
+        function selectConversation(element, conversationId) {
+            // Save current conversation before switching
+            if (currentMessages.length > 0) {
+                const existingConv = conversations.find(c => c.id === currentConversationId);
+                if (existingConv) {
+                    existingConv.messages = [...currentMessages];
+                    existingConv.lastMessage = new Date().toISOString();
+                } else if (currentConversationId !== conversationId) {
+                    const newConv = {
+                        id: currentConversationId,
+                        title: currentMessages[0]?.content?.substring(0, 30) + '...' || 'New Chat',
+                        messages: [...currentMessages],
+                        lastMessage: new Date().toISOString(),
+                        created: new Date().toISOString()
+                    };
+                    conversations.unshift(newConv);
+                }
+                saveConversations();
+            }
+            
+            // Switch to selected conversation
+            currentConversationId = conversationId;
+            const selectedConv = conversations.find(c => c.id === conversationId);
+            
+            if (selectedConv) {
+                currentMessages = [...selectedConv.messages];
+                loadConversationMessages(selectedConv.messages);
+            } else {
+                currentMessages = [];
+                document.getElementById('messages').innerHTML = `
+                    <div class="message assistant">
+                        <div class="message-avatar">🧠</div>
+                        <div class="message-content">
+                            <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                            <div class="message-time">Just now</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Update active state
             document.querySelectorAll('.conversation-item').forEach(item => {
                 item.classList.remove('active');
             });
             element.classList.add('active');
         }
 
-        function updateConversationTitle(message) {
-            const activeConv = document.querySelector('.conversation-item.active');
-            if (activeConv && activeConv.textContent.includes('New Chat')) {
-                const title = message.length > 30 ? message.substring(0, 30) + '...' : message;
-                activeConv.querySelector('div').textContent = title;
-            }
+        function loadConversationMessages(messages) {
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+            
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.sender}`;
+                
+                const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const avatar = msg.sender === 'user' ? '👤' : '🧠';
+                
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">${avatar}</div>
+                    <div class="message-content">
+                        <div class="message-text">${msg.content}</div>
+                        <div class="message-time">${time}</div>
+                    </div>
+                `;
+                
+                messagesContainer.appendChild(messageDiv);
+            });
+            
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
 
         // Search memories
