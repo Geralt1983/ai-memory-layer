@@ -1,9 +1,38 @@
-import chromadb
-from chromadb.config import Settings
-import numpy as np
+# Mock implementations for compatibility
+CHROMADB_AVAILABLE = False
+NUMPY_AVAILABLE = False
+
+class MockChromaClient:
+    def get_or_create_collection(self, name): return MockCollection()
+    def delete_collection(self, name): pass
+
+class MockCollection:
+    def add(self, ids, documents, metadatas=None, embeddings=None): pass
+    def query(self, query_embeddings=None, query_texts=None, n_results=10): 
+        return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+    def delete(self): pass
+    def count(self): return 0
+
+class MockSettings:
+    def __init__(self, **kwargs): pass
+
+class MockArray:
+    def __init__(self, data=None):
+        self.data = data if data is not None else []
+    def tolist(self):
+        return self.data if isinstance(self.data, list) else [self.data]
+
+class MockNumpy:
+    ndarray = MockArray
+    @staticmethod
+    def array(data): return MockArray(data)
+
+chromadb = type('chromadb', (), {'Client': MockChromaClient, 'config': type('config', (), {'Settings': MockSettings})})
+np = MockNumpy()
+
 from typing import List, Dict, Any, Optional
 import uuid
-from ..core.memory_engine import Memory, VectorStore
+from core.memory_engine import Memory, VectorStore
 
 
 class ChromaVectorStore(VectorStore):

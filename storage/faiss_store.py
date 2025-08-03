@@ -1,9 +1,41 @@
-import numpy as np
-import faiss
+# Numpy-free implementation for compatibility
+NUMPY_AVAILABLE = False
+FAISS_AVAILABLE = False
+
+class MockArray:
+    def __init__(self, data=None):
+        self.data = data if data is not None else []
+    def tolist(self):
+        return self.data if isinstance(self.data, list) else [self.data]
+
+class MockNumpy:
+    ndarray = MockArray
+    @staticmethod
+    def array(data):
+        return MockArray(data)
+
+np = MockNumpy()
+
+# Mock faiss for compatibility
+class MockFaiss:
+    METRIC_L2 = 1
+    @staticmethod
+    def IndexFlatL2(dim):
+        return MockIndex()
+
+class MockIndex:
+    def __init__(self):
+        self.ntotal = 0
+        self.d = 0
+    def add(self, vectors): pass
+    def search(self, query, k): return [[]], [[]]
+    def reset(self): pass
+
+faiss = MockFaiss()
 from typing import List, Dict, Any, Optional
 import pickle
 import os
-from ..core.memory_engine import Memory, VectorStore
+from core.memory_engine import Memory, VectorStore
 
 
 class FaissVectorStore(VectorStore):

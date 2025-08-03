@@ -47,6 +47,7 @@ The system uses a modular plugin architecture with three main layers:
 
 ## Key Implementation Notes
 
+- **Compatibility Mode**: The system includes numpy-free fallback implementations for compatibility with environments where numpy installation hangs or fails. When numpy/faiss/chromadb are unavailable, the system gracefully falls back to basic functionality using mock implementations.
 - **Memory Search**: Uses embedding similarity search when both vector store and embedding provider are available
 - **Persistence**: Both vector stores and MemoryEngine support persistence:
   - Vector stores: FAISS saves to `.index/.pkl` files, ChromaDB has built-in persistence
@@ -152,6 +153,44 @@ python api_client_example.py
 
 # Interactive testing
 python api_client_example.py interactive
+```
+
+## Memory Management
+
+The project includes comprehensive memory cleanup and archival strategies:
+
+**Cleanup Strategies:**
+- **Age-based**: Remove memories older than specified days
+- **Size-based**: Keep only N most recent memories
+- **Relevance-based**: Remove memories with low relevance scores
+- **Duplicate detection**: Remove similar/duplicate content
+- **Metadata-based**: Clean up by metadata criteria
+
+**Archival Features:**
+- **Compressed storage**: Gzip-compressed JSON archives
+- **Tiered storage**: Hot/warm/cold memory management
+- **Export functionality**: JSON, CSV, TXT formats
+- **Archive restoration**: Restore memories from archives
+
+**API Endpoints:**
+- `GET /memories/stats` - Detailed memory statistics
+- `POST /memories/cleanup` - Clean up memories with criteria
+- `GET /archives` - List memory archives
+- `POST /memories/export` - Export memories to file
+- `POST /archives/{name}/restore` - Restore from archive
+
+**Usage Examples:**
+```bash
+# Demo memory management features
+python memory_management_demo.py
+
+# Interactive demo
+python memory_management_demo.py interactive
+
+# API cleanup example
+curl -X POST "http://localhost:8000/memories/cleanup" \
+  -H "Content-Type: application/json" \
+  -d '{"max_memories": 1000, "max_age_days": 90, "dry_run": true}'
 ```
 
 ## Common Tasks

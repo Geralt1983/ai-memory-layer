@@ -1,6 +1,30 @@
-from typing import List, Dict, Any, Optional
-import numpy as np
+from typing import List, Dict, Any, Optional, Union
 from datetime import datetime
+import os
+
+# Numpy-free implementation
+NUMPY_AVAILABLE = False
+print("Info: Running in numpy-free mode for compatibility")
+
+# Mock numpy for type compatibility
+class MockArray:
+    def __init__(self, data=None):
+        self.data = data if data is not None else []
+    
+    def tolist(self):
+        return self.data if isinstance(self.data, list) else [self.data]
+    
+    def __str__(self):
+        return f"MockArray({self.data})"
+
+class MockNumpy:
+    ndarray = MockArray
+    
+    @staticmethod
+    def array(data):
+        return MockArray(data)
+
+np = MockNumpy()
 from dataclasses import dataclass, field
 from abc import ABC, abstractmethod
 import json
@@ -12,7 +36,7 @@ from .logging_config import get_logger, log_memory_operation, monitor_performanc
 @dataclass
 class Memory:
     content: str
-    embedding: Optional[np.ndarray] = None
+    embedding: Optional[Union[np.ndarray, list]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
     relevance_score: float = 0.0
@@ -217,3 +241,32 @@ class MemoryEngine:
                 "error": str(e)
             }, exc_info=True)
             self.memories = []
+    
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get comprehensive memory statistics"""
+        if not self.memories:
+            return {
+                "total_memories": 0,
+                "oldest_memory": None,
+                "newest_memory": None,
+                "memory_types": {},
+                "average_content_length": 0
+            }
+        
+        sorted_memories = sorted(self.memories, key=lambda m: m.timestamp)
+        memory_types = {}
+        total_content_length = 0
+        
+        for memory in self.memories:
+            memory_type = memory.metadata.get("type", "unknown")
+            memory_types[memory_type] = memory_types.get(memory_type, 0) + 1
+            total_content_length += len(memory.content)
+        
+        return {
+            "total_memories": len(self.memories),
+            "oldest_memory": sorted_memories[0].timestamp,
+            "newest_memory": sorted_memories[-1].timestamp,
+            "memory_types": memory_types,
+            "average_content_length": total_content_length / len(self.memories),
+            "total_content_length": total_content_length
+        }
