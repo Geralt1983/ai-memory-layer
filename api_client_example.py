@@ -72,6 +72,54 @@ class MemoryAPIClient:
         response = self.session.get(f"{self.base_url}/stats")
         response.raise_for_status()
         return response.json()
+    
+    def get_memory_stats(self) -> Dict[str, Any]:
+        """Get detailed memory statistics"""
+        response = self.session.get(f"{self.base_url}/memories/stats")
+        response.raise_for_status()
+        return response.json()
+    
+    def cleanup_memories(self, max_memories: int = 1000, max_age_days: int = 90,
+                        min_relevance: float = 0.1, archive_before_cleanup: bool = True,
+                        dry_run: bool = False) -> Dict[str, Any]:
+        """Clean up memories"""
+        payload = {
+            "max_memories": max_memories,
+            "max_age_days": max_age_days,
+            "min_relevance": min_relevance,
+            "archive_before_cleanup": archive_before_cleanup,
+            "dry_run": dry_run
+        }
+        response = self.session.post(f"{self.base_url}/memories/cleanup", json=payload)
+        response.raise_for_status()
+        return response.json()
+    
+    def list_archives(self) -> Dict[str, Any]:
+        """List memory archives"""
+        response = self.session.get(f"{self.base_url}/archives")
+        response.raise_for_status()
+        return response.json()
+    
+    def export_memories(self, format: str = "json", filter_type: Optional[str] = None,
+                       start_date: Optional[str] = None, end_date: Optional[str] = None) -> bytes:
+        """Export memories to file"""
+        payload = {"format": format}
+        if filter_type:
+            payload["filter_type"] = filter_type
+        if start_date:
+            payload["start_date"] = start_date
+        if end_date:
+            payload["end_date"] = end_date
+        
+        response = self.session.post(f"{self.base_url}/memories/export", json=payload)
+        response.raise_for_status()
+        return response.content
+    
+    def restore_archive(self, archive_name: str) -> Dict[str, Any]:
+        """Restore memories from archive"""
+        response = self.session.post(f"{self.base_url}/archives/{archive_name}/restore")
+        response.raise_for_status()
+        return response.json()
 
 
 def main():
@@ -135,6 +183,33 @@ def main():
         print(f"   Vector store entries: {stats['vector_store_entries']}")
         print(f"   Memory types: {stats['memory_types']}")
         
+        # Memory management features
+        print("\n7. Memory management features...")
+        
+        # Get detailed memory stats
+        memory_stats = client.get_memory_stats()
+        print(f"   Detailed stats: {memory_stats['total_memories']} memories")
+        print(f"   Average content length: {memory_stats['average_content_length']:.1f}")
+        
+        # Demonstrate cleanup (dry run)
+        print("\n8. Testing cleanup (dry run)...")
+        cleanup_result = client.cleanup_memories(
+            max_memories=3,
+            max_age_days=1,  # Very recent to show effect
+            dry_run=True
+        )
+        print(f"   Would clean: {cleanup_result['memories_cleaned']} memories")
+        print(f"   Would keep: {cleanup_result['memories_after']} memories")
+        
+        # List archives
+        archives = client.list_archives()
+        print(f"\n9. Archives: {archives['total_count']} found")
+        
+        # Export memories
+        print("\n10. Exporting memories...")
+        export_data = client.export_memories(format="json", filter_type="user_message")
+        print(f"   Exported {len(export_data)} bytes of data")
+        
         print("\n✅ API client example completed successfully!")
         
     except requests.exceptions.ConnectionError:
@@ -151,8 +226,8 @@ def main():
 def interactive_mode():
     """Interactive mode for testing API"""
     print("AI Memory Layer API - Interactive Mode")
-    print("Commands: chat, memory, search, recent, stats, clear, quit")
-    print("=" * 50)
+    print("Commands: chat, memory, search, recent, stats, clear, cleanup, archives, export, quit")
+    print("=" * 80)
     
     client = MemoryAPIClient()
     
@@ -201,8 +276,54 @@ def interactive_mode():
                 if confirm.lower() == 'y':
                     client.clear_memories()
                     print("✅ Memories cleared")
+            elif command == "cleanup":
+                dry_run = input("Dry run only? (Y/n): ").lower() != 'n'
+                max_mem = input("Max memories to keep (default 100): ").strip()
+                max_mem = int(max_mem) if max_mem.isdigit() else 100
+                max_age = input("Max age in days (default 30): ").strip()
+                max_age = int(max_age) if max_age.isdigit() else 30
+                
+                result = client.cleanup_memories(
+                    max_memories=max_mem,
+                    max_age_days=max_age,
+                    dry_run=dry_run
+                )
+                
+                action = "Would clean" if dry_run else "Cleaned"
+                print(f"✅ {action}: {result['memories_cleaned']} memories")
+                print(f"   Remaining: {result['memories_after']} memories")
+                if result['memories_archived'] > 0:
+                    print(f"   Archived: {result['memories_archived']} memories")
+            
+            elif command == "archives":
+                archives = client.list_archives()
+                print(f"Archives ({archives['total_count']}):")
+                for i, archive in enumerate(archives['archives']):
+                    print(f"  {i+1}. {archive['memory_count']} memories")
+                    print(f"     Created: {archive['created_at']}")
+                    print(f"     Size: {archive['size_bytes']} bytes")
+            
+            elif command == "export":
+                format_choice = input("Format (json/csv/txt, default json): ").strip().lower()
+                if format_choice not in ['json', 'csv', 'txt']:
+                    format_choice = 'json'
+                
+                filter_type = input("Filter by type (optional): ").strip()
+                filter_type = filter_type if filter_type else None
+                
+                try:
+                    data = client.export_memories(format=format_choice, filter_type=filter_type)
+                    filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{format_choice}"
+                    
+                    with open(filename, 'wb') as f:
+                        f.write(data)
+                    
+                    print(f"✅ Exported to: {filename} ({len(data)} bytes)")
+                except Exception as e:
+                    print(f"❌ Export failed: {e}")
+            
             else:
-                print("Unknown command. Try: chat, memory, search, recent, stats, clear, quit")
+                print("Unknown command. Try: chat, memory, search, recent, stats, clear, cleanup, archives, export, quit")
                 
         except KeyboardInterrupt:
             break

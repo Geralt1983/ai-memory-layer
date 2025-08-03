@@ -60,3 +60,46 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
     timestamp: datetime = Field(default_factory=datetime.now)
+
+
+class CleanupRequest(BaseModel):
+    """Schema for memory cleanup requests"""
+    max_memories: Optional[int] = Field(5000, ge=1, le=100000, description="Maximum memories to keep")
+    max_age_days: Optional[int] = Field(90, ge=1, le=3650, description="Maximum age in days")
+    min_relevance: Optional[float] = Field(0.05, ge=0.0, le=1.0, description="Minimum relevance score")
+    archive_before_cleanup: bool = Field(True, description="Archive memories before deletion")
+    dry_run: bool = Field(False, description="Preview cleanup without making changes")
+
+
+class CleanupResponse(BaseModel):
+    """Schema for cleanup operation results"""
+    memories_before: int
+    memories_after: int
+    memories_cleaned: int
+    memories_archived: int
+    duration_ms: float
+    dry_run: bool
+
+
+class ArchiveListResponse(BaseModel):
+    """Schema for listing archives"""
+    archives: List[Dict[str, Any]]
+    total_count: int
+
+
+class ExportRequest(BaseModel):
+    """Schema for memory export requests"""
+    format: str = Field("json", regex="^(json|csv|txt)$", description="Export format")
+    filter_type: Optional[str] = Field(None, description="Filter by memory type")
+    start_date: Optional[datetime] = Field(None, description="Start date filter")
+    end_date: Optional[datetime] = Field(None, description="End date filter")
+
+
+class MemoryStatsResponse(BaseModel):
+    """Schema for detailed memory statistics"""
+    total_memories: int
+    oldest_memory: Optional[datetime]
+    newest_memory: Optional[datetime]
+    memory_types: Dict[str, int]
+    average_content_length: float
+    total_content_length: int

@@ -13,6 +13,7 @@ import uvicorn
 import time
 
 from core.memory_engine import MemoryEngine
+from core.memory_manager import MemoryManager, create_default_memory_manager
 from core.logging_config import get_logger, log_api_request
 from storage.faiss_store import FaissVectorStore
 from storage.chroma_store import ChromaVectorStore
@@ -20,13 +21,16 @@ from integrations.embeddings import OpenAIEmbeddings
 from integrations.openai_integration import OpenAIIntegration
 from .models import (
     MemoryCreate, MemoryResponse, ChatRequest, ChatResponse,
-    SearchRequest, SearchResponse, HealthResponse, ErrorResponse
+    SearchRequest, SearchResponse, HealthResponse, ErrorResponse,
+    CleanupRequest, CleanupResponse, ArchiveListResponse, ExportRequest,
+    MemoryStatsResponse
 )
 
 
 # Global variables for dependency injection
 memory_engine: Optional[MemoryEngine] = None
 openai_integration: Optional[OpenAIIntegration] = None
+memory_manager: Optional[MemoryManager] = None
 logger = get_logger("api")
 
 
@@ -42,7 +46,7 @@ async def lifespan(app: FastAPI):
 
 async def startup_event():
     """Initialize the memory system on startup"""
-    global memory_engine, openai_integration
+    global memory_engine, openai_integration, memory_manager
     
     try:
         logger.info("Starting AI Memory Layer API initialization")
@@ -93,6 +97,9 @@ async def startup_event():
             memory_engine=memory_engine,
             model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
         )
+        
+        # Initialize memory manager
+        memory_manager = create_default_memory_manager(memory_engine)
         
         logger.info("Memory system initialized successfully", extra={
             "vector_store_type": vector_store_type,
@@ -182,6 +189,16 @@ def get_openai_integration() -> OpenAIIntegration:
             detail="OpenAI integration not initialized"
         )
     return openai_integration
+
+
+# Dependency to get memory manager
+def get_memory_manager() -> MemoryManager:
+    if not memory_manager:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Memory manager not initialized"
+        )
+    return memory_manager
 
 
 # Exception handler
@@ -367,6 +384,201 @@ async def get_stats(engine: MemoryEngine = Depends(get_memory_engine)):
         stats["newest_memory"] = sorted_memories[-1].timestamp
     
     return stats
+
+
+# Memory management endpoints
+@app.get("/memories/stats", response_model=MemoryStatsResponse)
+async def get_memory_stats(engine: MemoryEngine = Depends(get_memory_engine)):
+    """Get detailed memory statistics"""
+    try:
+        stats = engine.get_memory_stats()
+        return MemoryStatsResponse(**stats)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get memory stats: {str(e)}"
+        )
+
+
+@app.post("/memories/cleanup", response_model=CleanupResponse)
+async def cleanup_memories(
+    cleanup_data: CleanupRequest,
+    manager: MemoryManager = Depends(get_memory_manager)
+):
+    """Clean up memories using specified criteria"""
+    try:
+        stats = manager.auto_cleanup(
+            max_memories=cleanup_data.max_memories,
+            max_age_days=cleanup_data.max_age_days,
+            min_relevance=cleanup_data.min_relevance
+        )
+        
+        # Override with dry_run if requested
+        if cleanup_data.dry_run:
+            # Run cleanup again as dry run to get preview
+            stats = manager.cleanup_memories(
+                archive_before_cleanup=cleanup_data.archive_before_cleanup,
+                dry_run=True
+            )
+        
+        return CleanupResponse(
+            memories_before=stats.total_memories_before,
+            memories_after=stats.total_memories_after,
+            memories_cleaned=stats.memories_cleaned,
+            memories_archived=stats.memories_archived,
+            duration_ms=stats.duration_ms,
+            dry_run=cleanup_data.dry_run
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cleanup failed: {str(e)}"
+        )
+
+
+@app.get("/archives", response_model=ArchiveListResponse)
+async def list_archives(manager: MemoryManager = Depends(get_memory_manager)):
+    """List all available memory archives"""
+    try:
+        archives = manager.archiver.list_archives()
+        archive_data = []
+        
+        for archive in archives:
+            archive_data.append({
+                "archive_path": archive.archive_path,
+                "created_at": archive.created_at,
+                "memory_count": archive.memory_count,
+                "size_bytes": archive.size_bytes,
+                "criteria": archive.criteria
+            })
+        
+        return ArchiveListResponse(
+            archives=archive_data,
+            total_count=len(archive_data)
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list archives: {str(e)}"
+        )
+
+
+@app.post("/memories/export")
+async def export_memories(
+    export_data: ExportRequest,
+    manager: MemoryManager = Depends(get_memory_manager)
+):
+    """Export memories to specified format"""
+    try:
+        from fastapi.responses import FileResponse
+        import tempfile
+        
+        # Create filter function based on request
+        def memory_filter(memory):
+            # Filter by type
+            if export_data.filter_type:
+                if memory.metadata.get("type") != export_data.filter_type:
+                    return False
+            
+            # Filter by date range
+            if export_data.start_date and memory.timestamp < export_data.start_date:
+                return False
+            if export_data.end_date and memory.timestamp > export_data.end_date:
+                return False
+            
+            return True
+        
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(
+            delete=False, 
+            suffix=f".{export_data.format}",
+            mode='w'
+        ) as temp_file:
+            temp_path = temp_file.name
+        
+        # Export memories
+        manager.export_memories(
+            temp_path,
+            format=export_data.format,
+            filter_func=memory_filter
+        )
+        
+        # Return file
+        filename = f"memories_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{export_data.format}"
+        
+        return FileResponse(
+            path=temp_path,
+            filename=filename,
+            media_type=f"application/{export_data.format}"
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Export failed: {str(e)}"
+        )
+
+
+@app.post("/archives/{archive_name}/restore")
+async def restore_archive(
+    archive_name: str,
+    manager: MemoryManager = Depends(get_memory_manager),
+    engine: MemoryEngine = Depends(get_memory_engine)
+):
+    """Restore memories from an archive"""
+    try:
+        # Find archive by name
+        archives = manager.archiver.list_archives()
+        archive_path = None
+        
+        for archive in archives:
+            if archive_name in archive.archive_path:
+                archive_path = archive.archive_path
+                break
+        
+        if not archive_path:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Archive '{archive_name}' not found"
+            )
+        
+        # Load memories from archive
+        archived_memories = manager.archiver.load_archive(archive_path)
+        
+        # Add memories back to engine
+        restored_count = 0
+        for memory in archived_memories:
+            # Check if memory already exists to avoid duplicates
+            existing = any(
+                m.content == memory.content and 
+                abs((m.timestamp - memory.timestamp).total_seconds()) < 1
+                for m in engine.memories
+            )
+            
+            if not existing:
+                engine.memories.append(memory)
+                restored_count += 1
+        
+        # Save updated memories
+        if engine.persist_path:
+            engine.save_memories()
+        
+        return {
+            "message": f"Successfully restored {restored_count} memories from archive",
+            "archive_path": archive_path,
+            "memories_restored": restored_count,
+            "total_memories": len(engine.memories)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Archive restoration failed: {str(e)}"
+        )
 
 
 # Development server runner

@@ -92,3 +92,8 @@ data/
 tmp/
 temp/
 *.tmp
+
+# Installers
+Miniconda*.sh
+*.dmg
+*.pkg
