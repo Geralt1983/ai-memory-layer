@@ -6,6 +6,8 @@ from core.context_builder import ContextBuilder
 from core.conversation_buffer import ConversationBuffer
 from core.logging_config import get_logger, monitor_performance
 from .embeddings import OpenAIEmbeddings
+from langchain.memory import ConversationBufferWindowMemory
+from langchain.schema import BaseMessage, HumanMessage, AIMessage
 
 
 class OpenAIIntegration:
@@ -22,6 +24,15 @@ class OpenAIIntegration:
         self.memory_engine = memory_engine
         self.embeddings = OpenAIEmbeddings(api_key, embedding_model)
         self.context_builder = ContextBuilder(memory_engine)
+        
+        # Use LangChain's conversation memory instead of custom buffer
+        self.langchain_memory = ConversationBufferWindowMemory(
+            k=conversation_buffer_size,  # Keep last N exchanges
+            return_messages=True,
+            memory_key="chat_history"
+        )
+        
+        # Keep custom buffer for compatibility (for now)
         self.conversation_buffer = ConversationBuffer(max_messages=conversation_buffer_size)
         self.logger = get_logger("openai_integration")
 
@@ -106,31 +117,37 @@ NOT: "What's making you feel this way?" (ignoring his answer)"""
             include_relevant=include_relevant,
         )
         
-        # Prepare messages with system prompt (no duplicate conversation context)
-        messages = []
-        
+        # Build system prompt with preferences and long-term context
         if system_prompt:
-            # Use provided system prompt
-            messages.append({"role": "system", "content": system_prompt})
+            enhanced_system_prompt = system_prompt
         else:
-            # Build concise system prompt with preferences and long-term context only
             enhanced_system_prompt = self._build_system_prompt(user_preferences, context)
-            messages.append({"role": "system", "content": enhanced_system_prompt})
-            self.logger.debug(
-                "System prompt created", 
-                extra={
-                    "has_preferences": bool(user_preferences),
-                    "context_length": len(context) if context else 0,
-                    "conversation_messages": self.conversation_buffer.get_message_count()
-                }
-            )
-
-        # Add recent conversation messages (this provides the conversation context)
-        recent_messages = self.conversation_buffer.get_messages()
-        messages.extend(recent_messages)
+        
+        # Get conversation history from LangChain memory
+        chat_history = self.langchain_memory.chat_memory.messages
+        
+        # Build messages array with system prompt + LangChain history + current message
+        messages = [{"role": "system", "content": enhanced_system_prompt}]
+        
+        # Convert LangChain messages to OpenAI format
+        for msg in chat_history:
+            if isinstance(msg, HumanMessage):
+                messages.append({"role": "user", "content": msg.content})
+            elif isinstance(msg, AIMessage):
+                messages.append({"role": "assistant", "content": msg.content})
         
         # Add current user message
         messages.append({"role": "user", "content": message})
+        
+        self.logger.debug(
+            "System prompt created with LangChain memory", 
+            extra={
+                "has_preferences": bool(user_preferences),
+                "context_length": len(context) if context else 0,
+                "langchain_messages": len(chat_history),
+                "total_messages": len(messages)
+            }
+        )
 
         # Get response from OpenAI
         self.logger.debug(
@@ -173,23 +190,27 @@ NOT: "What's making you feel this way?" (ignoring his answer)"""
 
         # Store the interaction in memory
         if remember_response:
-            self.logger.debug("Storing conversation in memory")
+            self.logger.debug("Storing conversation in LangChain memory and persistent storage")
 
-            # Add to conversation buffer (short-term memory)
+            # Add to LangChain memory (this handles conversation context properly)
+            self.langchain_memory.chat_memory.add_user_message(message)
+            self.langchain_memory.chat_memory.add_ai_message(answer)
+
+            # Also add to custom buffer for compatibility (for now)
             self.conversation_buffer.add_message("user", message)
             self.conversation_buffer.add_message("assistant", answer)
 
-            # Store user message (MemoryEngine will handle embedding generation)
+            # Store user message in persistent memory (MemoryEngine will handle embedding generation)
             self.memory_engine.add_memory(
                 f"User: {message}", metadata={"type": "user_message"}
             )
 
-            # Store assistant response (MemoryEngine will handle embedding generation)
+            # Store assistant response in persistent memory
             self.memory_engine.add_memory(
                 f"Assistant: {answer}", metadata={"type": "assistant_response"}
             )
 
-            self.logger.debug("Conversation stored in both buffer and persistent memory successfully")
+            self.logger.debug("Conversation stored in LangChain memory, custom buffer, and persistent memory successfully")
 
         self.logger.info(
             "Chat with memory completed successfully",
@@ -208,14 +229,18 @@ NOT: "What's making you feel this way?" (ignoring his answer)"""
         return self.memory_engine.add_memory(content, metadata)
     
     def clear_conversation_buffer(self) -> None:
-        """Clear the conversation buffer (start fresh conversation)."""
+        """Clear both LangChain memory and custom conversation buffer (start fresh conversation)."""
+        self.langchain_memory.clear()
         self.conversation_buffer.clear()
-        self.logger.info("Conversation buffer cleared")
+        self.logger.info("LangChain memory and conversation buffer cleared")
     
     def get_conversation_buffer_info(self) -> Dict[str, Any]:
-        """Get information about the current conversation buffer."""
+        """Get information about both LangChain memory and custom conversation buffer."""
+        langchain_messages = len(self.langchain_memory.chat_memory.messages)
         return {
-            "message_count": self.conversation_buffer.get_message_count(),
-            "max_messages": self.conversation_buffer.max_messages,
+            "custom_message_count": self.conversation_buffer.get_message_count(),
+            "custom_max_messages": self.conversation_buffer.max_messages,
+            "langchain_message_count": langchain_messages,
+            "langchain_max_messages": self.langchain_memory.k,
             "recent_context": self.conversation_buffer.get_context_string(max_chars=500)
         }
