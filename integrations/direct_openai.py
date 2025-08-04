@@ -1,6 +1,6 @@
 """
-Direct OpenAI Integration - Clean ChatGPT-like conversation management
-No LangChain, No LangGraph, Just direct control over the conversation flow
+Direct OpenAI Integration - GPT-4o Optimized Conversation Management
+Human-like responses with sophisticated memory integration and context awareness
 """
 from typing import List, Dict, Any, Optional, Tuple
 from openai import OpenAI
@@ -21,16 +21,30 @@ class DirectOpenAIChat:
         memory_engine: MemoryEngine,
         model: str = "gpt-4o",
         embedding_model: str = "text-embedding-ada-002",
+        system_prompt_path: str = "./prompts/system_prompt_4o.txt",
     ):
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self.memory_engine = memory_engine
         self.embeddings = OpenAIEmbeddings(api_key, embedding_model)
         self.logger = get_logger("direct_openai")
+        self.system_prompt_path = system_prompt_path
         
         # Store conversation history in memory by thread_id
         self.conversations = {}
         self._load_conversation_history()
+        
+        # Load optimized system prompt
+        self.base_system_prompt = self._load_system_prompt()
+        
+        # User identity profile for GPT-4o personalization
+        self.user_identity = {
+            "name": "Jeremy Kimble",
+            "role": "IT consultant and AI system builder",
+            "preferences": "Direct communication, technical precision, no fluff responses",
+            "context": "Building AI memory layer with vector storage and GPT-4o integration",
+            "communication_style": "Expects blunt, helpful responses like a capable peer"
+        }
         
     def _load_conversation_history(self):
         """Load persisted conversation history from disk"""
@@ -59,6 +73,75 @@ class DirectOpenAIChat:
                 json.dump(self.conversations, f, indent=2)
         except Exception as e:
             self.logger.error(f"Failed to save conversation history: {e}")
+    
+    def _load_system_prompt(self) -> str:
+        """Load the GPT-4o optimized system prompt"""
+        try:
+            if os.path.exists(self.system_prompt_path):
+                with open(self.system_prompt_path, 'r') as f:
+                    return f.read().strip()
+        except Exception as e:
+            self.logger.error(f"Failed to load system prompt: {e}")
+        
+        # Fallback to embedded prompt
+        return """You are an AI assistant designed to interact like a sharp, experienced, human-like conversation partner. You are modeled after the best traits of GPT-4o, known for memory-aware, emotionally intelligent, and contextually precise responses.
+
+Your goals are:
+- Speak naturally, like a fast-thinking, helpful peer
+- Remember and subtly incorporate long-term context and preferences
+- Avoid repetition, filler phrases, robotic tone, or over-explaining
+- Acknowledge what the user implies, not just what they say
+- Maintain continuity in tone, voice, and purpose across threads
+
+DO:
+- Be concise, clear, and confident
+- Use friendly, professional language with optional cleverness
+- Handle ambiguity with tact, not hedging
+- Reference memory seamlessly and naturally, not by quoting
+
+DON'T:
+- Say "As an AI..." or use boilerplate
+- Apologize for things that weren't errors
+- Repeat user's question before answering
+- Over-explain unless asked to
+
+If retrieved memory is provided, treat it as background insight. Use it to inform your response, not dominate it. Only reference it directly if it clarifies the user's intent.
+
+You are currently supporting a user named Jeremy Kimble, an IT consultant who is building a long-memory AI assistant with vector recall using FAISS and OpenAI's GPT-4o API. He values speed, precision, low-fluff responses, and clever utility."""
+    
+    def _create_memory_summary(self, memories: List[Memory]) -> str:
+        """Transform raw FAISS memories into natural context summaries"""
+        if not memories:
+            return None
+            
+        # Group memories by type and create natural summaries
+        memory_groups = {}
+        for memory in memories:
+            memory_type = memory.metadata.get('type', 'general')
+            if memory_type not in memory_groups:
+                memory_groups[memory_type] = []
+            memory_groups[memory_type].append(memory.content)
+        
+        summaries = []
+        for mem_type, contents in memory_groups.items():
+            if mem_type == 'preference':
+                summaries.append(f"User preferences: {', '.join(contents[:3])}")
+            elif mem_type == 'user_message':
+                summaries.append(f"Recent topics discussed: {', '.join([c[:50] + '...' for c in contents[:2]])}")
+            elif mem_type == 'tool' or mem_type == 'technical':
+                summaries.append(f"Technical context: {', '.join(contents[:2])}")
+            else:
+                summaries.append(f"Context: {contents[0][:100]}..." if contents else "")
+        
+        return " | ".join(summaries) if summaries else None
+    
+    def _create_identity_message(self) -> str:
+        """Create identity profile message for GPT-4o personalization"""
+        return f"""User Profile: {self.user_identity['name']}, {self.user_identity['role']}. Communication style: {self.user_identity['communication_style']}. Current project context: {self.user_identity['context']}."""
+    
+    def _create_behavior_log(self) -> str:
+        """Create past behavior expectations for consistency"""
+        return """Past interaction patterns: The assistant is expected to avoid caveats, provide formatted code when asked, speak like a capable peer (not customer support), reference conversation history naturally, and maintain continuity across topics without restarting context."""
     
     def _get_conversation_messages(self, thread_id: str, limit: int = 10) -> List[Dict[str, str]]:
         """Get recent conversation messages for a thread"""
@@ -92,55 +175,52 @@ class DirectOpenAIChat:
         system_prompt: Optional[str] = None,
         include_memories: int = 5
     ) -> List[Dict[str, str]]:
-        """Build the messages array for OpenAI API"""
+        """Build the optimized messages array for GPT-4o API with sophisticated context"""
         messages = []
         
-        # 1. System prompt
+        # 1. Primary system prompt (GPT-4o optimized)
         if not system_prompt:
-            system_prompt = """You're Jeremy's AI assistant with persistent memory. Pay close attention to conversation flow and context.
-
-About Jeremy: 41 years old, wife Ashley, 7 kids, dogs Remy & Bailey. Direct communicator who dislikes generic responses.
-
-CRITICAL CONTEXT RULES:
-- ALWAYS reference the entire conversation history, not just the last message
-- When Jeremy says "what task" or similar, look for tasks mentioned earlier in our conversation
-- Build on previous messages - don't start fresh each time
-- Be specific and reference actual details from our conversation"""
-        
+            system_prompt = self.base_system_prompt
         messages.append({"role": "system", "content": system_prompt})
         
-        # 2. Add relevant memories from long-term storage
+        # 2. Identity profile injection for personalization
+        messages.append({"role": "system", "content": self._create_identity_message()})
+        
+        # 3. Behavior expectations for consistency
+        messages.append({"role": "system", "content": self._create_behavior_log()})
+        
+        # 4. Sophisticated memory injection (rewritten for natural context)
         if include_memories > 0:
             relevant_memories = self.memory_engine.search_memories(user_message, k=include_memories)
             if relevant_memories:
-                memory_context = "\n".join([
-                    f"- {mem.content}" for mem in relevant_memories
-                ])
-                messages.append({
-                    "role": "system", 
-                    "content": f"Relevant context from memory:\n{memory_context}"
-                })
+                memory_summary = self._create_memory_summary(relevant_memories)
+                if memory_summary:
+                    messages.append({
+                        "role": "system", 
+                        "content": f"Background context: {memory_summary}"
+                    })
         
-        # 3. Add conversation history (this is the KEY part!)
+        # 5. Add conversation history (maintain continuity)
         conversation_history = self._get_conversation_messages(thread_id, limit=20)
         for msg in conversation_history:
             messages.append({"role": msg["role"], "content": msg["content"]})
         
-        # 4. Add current user message
+        # 6. Add current user message
         messages.append({"role": "user", "content": user_message})
         
         self.logger.debug(
-            f"Built message array with {len(messages)} messages for thread {thread_id}",
+            f"Built GPT-4o optimized message array with {len(messages)} messages for thread {thread_id}",
             extra={
                 "system_messages": sum(1 for m in messages if m["role"] == "system"),
                 "history_messages": len(conversation_history),
-                "total_messages": len(messages)
+                "total_messages": len(messages),
+                "memory_injected": include_memories > 0
             }
         )
         
         return messages
     
-    @monitor_performance("chat_completion")
+    @monitor_performance("gpt4o_chat_completion")
     def chat(
         self,
         message: str,
@@ -149,7 +229,7 @@ CRITICAL CONTEXT RULES:
         remember_response: bool = True,
         temperature: float = 0.7,
     ) -> Tuple[str, List[Dict[str, str]]]:
-        """Main chat method - returns response and the context used"""
+        """GPT-4o optimized chat method with human-like response tuning"""
         
         self.logger.info(
             f"Processing chat request for thread {thread_id}",
@@ -164,12 +244,15 @@ CRITICAL CONTEXT RULES:
         )
         
         try:
-            # Call OpenAI API
+            # GPT-4o optimized API call with human-like tuning
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages,
-                temperature=temperature,
-                max_tokens=1000
+                temperature=temperature,  # 0.6-0.75 for human-like responses
+                top_p=1.0,  # Full token diversity
+                presence_penalty=0.5,  # Encourage new topics/ideas
+                frequency_penalty=0.25,  # Reduce repetition
+                max_tokens=1200  # Allow for more detailed responses
             )
             
             assistant_response = response.choices[0].message.content

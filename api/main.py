@@ -19,7 +19,6 @@ from core.logging_config import get_logger, log_api_request
 from storage.faiss_store import FaissVectorStore
 from storage.chroma_store import ChromaVectorStore
 from integrations.embeddings import OpenAIEmbeddings
-from integrations.openai_integration import OpenAIIntegration
 from integrations.direct_openai import DirectOpenAIChat
 from .models import (
     MemoryCreate,
@@ -40,7 +39,6 @@ from .models import (
 
 # Global variables for dependency injection
 memory_engine: Optional[MemoryEngine] = None
-openai_integration: Optional[OpenAIIntegration] = None
 direct_openai_chat: Optional[DirectOpenAIChat] = None
 memory_manager: Optional[MemoryManager] = None
 logger = get_logger("api")
@@ -58,7 +56,7 @@ async def lifespan(app: FastAPI):
 
 async def startup_event():
     """Initialize the memory system on startup"""
-    global memory_engine, openai_integration, direct_openai_chat, memory_manager
+    global memory_engine, direct_openai_chat, memory_manager
 
     try:
         logger.info("Starting AI Memory Layer API initialization")
@@ -107,18 +105,13 @@ async def startup_event():
             persist_path=memory_persist_path,
         )
 
-        # Initialize OpenAI integration (legacy)
-        openai_integration = OpenAIIntegration(
-            api_key=api_key,
-            memory_engine=memory_engine,
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
-        )
         
-        # Initialize Direct OpenAI Chat (new clean approach)
+        # Initialize Direct OpenAI Chat (GPT-4o optimized)
         direct_openai_chat = DirectOpenAIChat(
             api_key=api_key,
             memory_engine=memory_engine,
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            system_prompt_path=os.getenv("SYSTEM_PROMPT_PATH", "./prompts/system_prompt_4o.txt"),
         )
 
         # Initialize memory manager
@@ -212,15 +205,6 @@ def get_memory_engine() -> MemoryEngine:
         )
     return memory_engine
 
-
-# Dependency to get OpenAI integration
-def get_openai_integration() -> OpenAIIntegration:
-    if not openai_integration:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="OpenAI integration not initialized",
-        )
-    return openai_integration
 
 
 # Dependency to get direct OpenAI chat
@@ -620,17 +604,17 @@ async def restore_archive(
 
 
 @app.post("/debug/test-logging")
-async def test_debug_logging(ai: OpenAIIntegration = Depends(get_openai_integration)):
+async def test_debug_logging(direct_chat: DirectOpenAIChat = Depends(get_direct_openai_chat)):
     """Test endpoint to verify debug logging is working"""
-    ai.logger.info("TEST: Debug logging test from API endpoint")
-    ai.logger.debug("TEST: This is a debug message from openai_integration")
+    direct_chat.logger.info("TEST: Debug logging test from API endpoint")
+    direct_chat.logger.debug("TEST: This is a debug message from DirectOpenAIChat")
     
-    return {"message": "Debug logging test completed", "logger_name": ai.logger.name}
+    return {"message": "Debug logging test completed", "logger_name": direct_chat.logger.name}
 
 
 @app.post("/conversations/generate-title")
 async def generate_conversation_title(
-    request: dict, ai: OpenAIIntegration = Depends(get_openai_integration)
+    request: dict, direct_chat: DirectOpenAIChat = Depends(get_direct_openai_chat)
 ):
     """Generate a concise title for a conversation based on its messages"""
     try:
@@ -659,7 +643,7 @@ Generate only the title, nothing else. Examples of good titles:
 
 Title:"""
 
-        response = ai.client.chat.completions.create(
+        response = direct_chat.client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": title_prompt}],
             max_tokens=10,

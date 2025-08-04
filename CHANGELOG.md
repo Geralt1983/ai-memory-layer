@@ -5,6 +5,26 @@ All notable changes to the AI Memory Layer project will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.1] - 2025-08-04
+
+### Changed
+- 
+
+## [1.11.0] - 2025-08-04
+
+### Added
+- feat: GPT-4o optimized system prompts for human-like responses
+- feat: sophisticated memory injection with natural context summaries
+- feat: identity profile and behavior log integration for consistent personality
+- feat: advanced context builder with message type detection
+- feat: optimized API parameters (temperature, presence_penalty, frequency_penalty)
+
+### Changed
+- Enhanced DirectOpenAIChat with GPT-4o specific optimizations
+- Improved conversation continuity with multi-layered system messages
+- Updated default model to GPT-4o for superior context handling
+- Refined memory integration to feel natural rather than mechanical
+
 ## [1.10.0] - 2025-08-04
 
 ### Changed
