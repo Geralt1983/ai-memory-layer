@@ -590,6 +590,15 @@ async def restore_archive(
         )
 
 
+@app.post("/debug/test-logging")
+async def test_debug_logging(ai: OpenAIIntegration = Depends(get_openai_integration)):
+    """Test endpoint to verify debug logging is working"""
+    ai.logger.info("TEST: Debug logging test from API endpoint")
+    ai.logger.debug("TEST: This is a debug message from openai_integration")
+    
+    return {"message": "Debug logging test completed", "logger_name": ai.logger.name}
+
+
 @app.post("/conversations/generate-title")
 async def generate_conversation_title(
     request: dict, ai: OpenAIIntegration = Depends(get_openai_integration)
