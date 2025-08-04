@@ -132,6 +132,16 @@ NEVER give generic responses like "there are many strategies" or "feel free to l
         )
 
         try:
+            # Debug logging
+            self.logger.debug(
+                "Sending to OpenAI with system prompt",
+                extra={
+                    "system_prompt": messages[0]["content"][:500] + "..." if messages else "No system prompt",
+                    "total_messages": len(messages),
+                    "model": self.model
+                }
+            )
+            
             response = self.client.chat.completions.create(
                 model=self.model, messages=messages
             )
