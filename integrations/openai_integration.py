@@ -36,7 +36,7 @@ class OpenAIIntegration:
         
         self.langchain_memory = ConversationSummaryBufferMemory(
             llm=self.langchain_chat,
-            max_token_limit=4000,  # Increased from 2000 - keep more context
+            max_token_limit=8000,  # Increased significantly to preserve immediate context
             return_messages=False,  # Return as string for ConversationChain
             memory_key="history"
         )
