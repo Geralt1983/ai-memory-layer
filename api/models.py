@@ -39,6 +39,9 @@ class ChatRequest(BaseModel):
     remember_response: bool = Field(
         True, description="Whether to store the conversation in memory"
     )
+    thread_id: str = Field(
+        "default", description="Conversation thread ID for maintaining context"
+    )
 
 
 class ChatResponse(BaseModel):

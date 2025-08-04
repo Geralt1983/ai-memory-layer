@@ -345,6 +345,7 @@ async def chat_with_memory(
             "message": chat_data.message[:100],
             "include_recent": chat_data.include_recent,
             "include_relevant": chat_data.include_relevant,
+            "thread_id": chat_data.thread_id,
             "openai_integration_class": ai.__class__.__name__
         })
         response = ai.chat_with_memory(
@@ -353,6 +354,7 @@ async def chat_with_memory(
             include_recent=chat_data.include_recent,
             include_relevant=chat_data.include_relevant,
             remember_response=chat_data.remember_response,
+            thread_id=chat_data.thread_id,
         )
         
         # Log the response we got back

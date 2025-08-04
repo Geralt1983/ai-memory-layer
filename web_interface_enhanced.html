@@ -605,6 +605,7 @@
         let recognition = null;
         let isGenerating = false;
         let currentGenerationController = null;
+        let conversationThreadId = `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
         // Initialize
         async function init() {
@@ -854,7 +855,8 @@
                         message: message,
                         include_recent: 5,
                         include_relevant: 3,
-                        remember_response: true
+                        remember_response: true,
+                        thread_id: conversationThreadId
                     })
                 });
                 
