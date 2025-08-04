@@ -45,7 +45,7 @@ class OpenAIIntegration:
         self.conversation_chain = ConversationChain(
             llm=self.langchain_chat,
             memory=self.langchain_memory,
-            verbose=False
+            verbose=True  # Enable to debug what LangChain is actually doing
         )
         
         # Keep custom buffer for compatibility (for now)
@@ -148,6 +148,16 @@ Assistant:"""
         )
 
         try:
+            # Debug: Log what's actually in the memory before making the call
+            memory_content = self.langchain_memory.buffer
+            self.logger.debug(
+                "Memory content before LangChain call",
+                extra={
+                    "memory_content": memory_content[:500] + "..." if len(memory_content) > 500 else memory_content,
+                    "memory_length": len(memory_content)
+                }
+            )
+            
             # Use LangChain's conversation chain - this handles conversation flow properly!
             answer = self.conversation_chain.predict(input=message)
 
