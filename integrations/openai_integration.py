@@ -10,6 +10,7 @@ from langchain.memory import ConversationSummaryBufferMemory
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationChain
+from .langgraph_conversation import LangGraphConversation
 
 
 class OpenAIIntegration:
@@ -27,7 +28,15 @@ class OpenAIIntegration:
         self.embeddings = OpenAIEmbeddings(api_key, embedding_model)
         self.context_builder = ContextBuilder(memory_engine)
         
-        # Use LangChain's full conversation system instead of raw OpenAI API
+        # Initialize LangGraph conversation system (replaces deprecated ConversationChain)
+        self.langgraph_conversation = LangGraphConversation(
+            api_key=api_key,
+            memory_engine=memory_engine,
+            model=model,
+            temperature=0.7
+        )
+        
+        # Keep legacy systems for backward compatibility (deprecated)
         self.langchain_chat = ChatOpenAI(
             openai_api_key=api_key,
             model_name=model,
@@ -67,7 +76,7 @@ AI Assistant:"""
             template=custom_template
         )
         
-        # This is the key - use LangChain's ConversationChain with our custom prompt
+        # This is the key - use LangChain's ConversationChain with our custom prompt (DEPRECATED)
         self.conversation_chain = ConversationChain(
             llm=self.langchain_chat,
             memory=self.langchain_memory,
@@ -124,131 +133,177 @@ Key: Always acknowledge and build on Jeremy's specific answers. When he asks "wh
         include_recent: int = 5,
         include_relevant: int = 5,
         remember_response: bool = True,
+        thread_id: str = "default",
+        use_langgraph: bool = True,
     ) -> str:
-        self.logger.info(
-            "Starting chat with LangChain conversation chain",
-            extra={
-                "message_length": len(message),
-                "include_recent": include_recent,
-                "include_relevant": include_relevant,
-                "remember_response": remember_response,
-                "has_system_prompt": system_prompt is not None,
-            },
-        )
+        # Use the new LangGraph system by default
+        if use_langgraph:
+            self.logger.info(
+                "Starting chat with LangGraph conversation system",
+                extra={
+                    "message_length": len(message),
+                    "thread_id": thread_id,
+                    "remember_response": remember_response,
+                    "has_system_prompt": system_prompt is not None,
+                },
+            )
+            
+            try:
+                # Use the new LangGraph conversation system
+                answer = self.langgraph_conversation.chat_with_memory(
+                    message=message,
+                    thread_id=thread_id,
+                    system_prompt=system_prompt,
+                    remember_response=remember_response
+                )
 
-        # Extract user preferences from memory
-        self.logger.debug("Extracting user preferences from memory")
-        user_preferences = self._extract_user_preferences()
-        
-        # Build context from long-term memory
-        self.logger.debug("Building context from long-term memory")
-        context = self.context_builder.build_context(
-            query=message,
-            include_recent=include_recent,
-            include_relevant=include_relevant,
-        )
-        
-        # Let LangChain handle conversation naturally without custom prompt injection
-        # Only inject system context if explicitly provided
-        if system_prompt:
-            from langchain.prompts import PromptTemplate
-            custom_prompt = PromptTemplate(
-                input_variables=["history", "input"],
-                template=f"""{system_prompt}
+                self.logger.info(
+                    "LangGraph conversation response received",
+                    extra={
+                        "response_length": len(answer) if answer else 0,
+                        "model": self.model,
+                        "thread_id": thread_id,
+                    },
+                )
+                
+                return answer
+
+            except Exception as e:
+                self.logger.error(
+                    "Failed to get LangGraph conversation response",
+                    extra={"error": str(e), "model": self.model, "thread_id": thread_id},
+                    exc_info=True,
+                )
+                # Fall back to legacy system
+                self.logger.warning("Falling back to legacy ConversationChain system")
+                use_langgraph = False
+
+        # Legacy LangChain ConversationChain system (deprecated)
+        if not use_langgraph:
+            self.logger.info(
+                "Using legacy LangChain conversation chain",
+                extra={
+                    "message_length": len(message),
+                    "include_recent": include_recent,
+                    "include_relevant": include_relevant,
+                    "remember_response": remember_response,
+                    "has_system_prompt": system_prompt is not None,
+                },
+            )
+
+            # Extract user preferences from memory
+            self.logger.debug("Extracting user preferences from memory")
+            user_preferences = self._extract_user_preferences()
+            
+            # Build context from long-term memory
+            self.logger.debug("Building context from long-term memory")
+            context = self.context_builder.build_context(
+                query=message,
+                include_recent=include_recent,
+                include_relevant=include_relevant,
+            )
+            
+            # Let LangChain handle conversation naturally without custom prompt injection
+            # Only inject system context if explicitly provided
+            if system_prompt:
+                from langchain.prompts import PromptTemplate
+                custom_prompt = PromptTemplate(
+                    input_variables=["history", "input"],
+                    template=f"""{system_prompt}
 
 Current conversation:
 {{history}}
 Human: {{input}}
 Assistant:"""
-            )
-            self.conversation_chain.prompt = custom_prompt
-        
-        self.logger.debug(
-            "Using LangChain ConversationChain", 
-            extra={
-                "has_custom_prompt": system_prompt is not None,
-                "has_preferences": bool(user_preferences),
-                "context_length": len(context) if context else 0,
-                "chain_memory_messages": len(self.langchain_memory.chat_memory.messages),
-                "chain_max_tokens": self.langchain_memory.max_token_limit
-            }
-        )
-
-        try:
-            # Debug: Log what's actually in the memory before making the call
-            memory_content = self.langchain_memory.buffer
-            chat_messages = self.langchain_memory.chat_memory.messages
+                )
+                self.conversation_chain.prompt = custom_prompt
             
-            self.logger.info(
-                "ConversationSummaryBufferMemory Debug",
+            self.logger.debug(
+                "Using LangChain ConversationChain", 
                 extra={
-                    "memory_buffer": memory_content[:1000] + "..." if len(memory_content) > 1000 else memory_content,
-                    "buffer_length": len(memory_content),
-                    "chat_messages_count": len(chat_messages),
-                    "max_token_limit": self.langchain_memory.max_token_limit,
-                    "current_message": message
+                    "has_custom_prompt": system_prompt is not None,
+                    "has_preferences": bool(user_preferences),
+                    "context_length": len(context) if context else 0,
+                    "chain_memory_messages": len(self.langchain_memory.chat_memory.messages),
+                    "chain_max_tokens": self.langchain_memory.max_token_limit
                 }
             )
-            
-            # Debug: Log the last few chat messages to see what's being kept
-            if chat_messages:
-                recent_messages = []
-                for msg in chat_messages[-6:]:  # Last 3 exchanges (6 messages)
-                    recent_messages.append(f"{msg.__class__.__name__}: {msg.content}")
+
+            try:
+                # Debug: Log what's actually in the memory before making the call
+                memory_content = self.langchain_memory.buffer
+                chat_messages = self.langchain_memory.chat_memory.messages
                 
                 self.logger.info(
-                    "Recent chat messages in memory",
-                    extra={"recent_messages": recent_messages}
+                    "ConversationSummaryBufferMemory Debug",
+                    extra={
+                        "memory_buffer": memory_content[:1000] + "..." if len(memory_content) > 1000 else memory_content,
+                        "buffer_length": len(memory_content),
+                        "chat_messages_count": len(chat_messages),
+                        "max_token_limit": self.langchain_memory.max_token_limit,
+                        "current_message": message
+                    }
                 )
-            
-            # Use LangChain's conversation chain - this handles conversation flow properly!
-            answer = self.conversation_chain.predict(input=message)
+                
+                # Debug: Log the last few chat messages to see what's being kept
+                if chat_messages:
+                    recent_messages = []
+                    for msg in chat_messages[-6:]:  # Last 3 exchanges (6 messages)
+                        recent_messages.append(f"{msg.__class__.__name__}: {msg.content}")
+                    
+                    self.logger.info(
+                        "Recent chat messages in memory",
+                        extra={"recent_messages": recent_messages}
+                    )
+                
+                # Use LangChain's conversation chain - this handles conversation flow properly!
+                answer = self.conversation_chain.predict(input=message)
+
+                self.logger.info(
+                    "LangChain conversation response received",
+                    extra={
+                        "response_length": len(answer) if answer else 0,
+                        "model": self.model,
+                    },
+                )
+
+            except Exception as e:
+                self.logger.error(
+                    "Failed to get LangChain conversation response",
+                    extra={"error": str(e), "model": self.model},
+                    exc_info=True,
+                )
+                raise
+
+            # Store the interaction in persistent memory (only for legacy system - LangGraph handles this automatically)
+            if remember_response:
+                self.logger.debug("Storing conversation in persistent memory")
+
+                # Add to custom buffer for compatibility (for now)
+                self.conversation_buffer.add_message("user", message)
+                self.conversation_buffer.add_message("assistant", answer)
+
+                # Store user message in persistent memory (MemoryEngine will handle embedding generation)
+                self.memory_engine.add_memory(
+                    f"User: {message}", metadata={"type": "user_message"}
+                )
+
+                # Store assistant response in persistent memory
+                self.memory_engine.add_memory(
+                    f"Assistant: {answer}", metadata={"type": "assistant_response"}
+                )
+
+                self.logger.debug("Conversation stored in persistent memory successfully")
 
             self.logger.info(
-                "LangChain conversation response received",
+                "Legacy LangChain chat with memory completed successfully",
                 extra={
+                    "message_length": len(message),
                     "response_length": len(answer) if answer else 0,
-                    "model": self.model,
                 },
             )
 
-        except Exception as e:
-            self.logger.error(
-                "Failed to get LangChain conversation response",
-                extra={"error": str(e), "model": self.model},
-                exc_info=True,
-            )
-            raise
-
-        # Store the interaction in persistent memory (LangChain memory is handled automatically)
-        if remember_response:
-            self.logger.debug("Storing conversation in persistent memory")
-
-            # Add to custom buffer for compatibility (for now)
-            self.conversation_buffer.add_message("user", message)
-            self.conversation_buffer.add_message("assistant", answer)
-
-            # Store user message in persistent memory (MemoryEngine will handle embedding generation)
-            self.memory_engine.add_memory(
-                f"User: {message}", metadata={"type": "user_message"}
-            )
-
-            # Store assistant response in persistent memory
-            self.memory_engine.add_memory(
-                f"Assistant: {answer}", metadata={"type": "assistant_response"}
-            )
-
-            self.logger.debug("Conversation stored in persistent memory successfully")
-
-        self.logger.info(
-            "LangChain chat with memory completed successfully",
-            extra={
-                "message_length": len(message),
-                "response_length": len(answer) if answer else 0,
-            },
-        )
-
-        return answer
+            return answer
 
     def add_memory_with_embedding(
         self, content: str, metadata: Optional[Dict[str, Any]] = None
