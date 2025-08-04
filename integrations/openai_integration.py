@@ -6,7 +6,7 @@ from core.context_builder import ContextBuilder
 from core.conversation_buffer import ConversationBuffer
 from core.logging_config import get_logger, monitor_performance
 from .embeddings import OpenAIEmbeddings
-from langchain.memory import ConversationBufferWindowMemory
+from langchain.memory import ConversationSummaryBufferMemory
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationChain
@@ -34,8 +34,9 @@ class OpenAIIntegration:
             temperature=0.7
         )
         
-        self.langchain_memory = ConversationBufferWindowMemory(
-            k=conversation_buffer_size//2,  # Number of exchanges (user+AI pairs)
+        self.langchain_memory = ConversationSummaryBufferMemory(
+            llm=self.langchain_chat,
+            max_token_limit=2000,  # Keep recent messages + summaries
             return_messages=False,  # Return as string for ConversationChain
             memory_key="history"
         )
@@ -76,27 +77,15 @@ class OpenAIIntegration:
         return ""
     
     def _build_system_prompt(self, user_preferences: str, context: str) -> str:
-        """Build a directive system prompt that forces conversation flow understanding"""
-        prompt = f"""You're Jeremy's direct AI assistant. CRITICAL: Look at the FULL conversation flow in the messages below.
+        """Build a natural system prompt that encourages proper conversation flow"""
+        prompt = f"""You're Jeremy's AI assistant. Pay close attention to conversation flow and context.
 
-CONVERSATION FLOW RULES:
-1. When Jeremy answers a question, acknowledge his specific answer first
-2. Build on his answer, don't ignore it or change topics
-3. "force it" = his method for handling tasks - discuss THAT specifically
-4. When he asks "what were we talking about" - refer back to the ORIGINAL topic
+About Jeremy: 41 years old, wife Ashley, 7 kids, dogs Remy & Bailey. Direct communicator who dislikes generic responses.
 
-Jeremy: 7 kids, wife Ashley, dogs Remy & Bailey, age 41. Hates generic responses.
+{f"Long-term context: {context}" if context else ""}
+{f"His preferences: {user_preferences}" if user_preferences else ""}
 
-{f"Long-term memories: {context}" if context else ""}
-{f"Preferences: {user_preferences}" if user_preferences else ""}
-
-EXAMPLE CONVERSATION FLOW:
-Jeremy: "have big tasks to do"
-You: "How do you handle them?"  
-Jeremy: "force it"
-You: "Ah, so you push through by forcing yourself. That's a tough approach - does that strategy work well for you with these big tasks, or does it burn you out?"
-
-NOT: "What's making you feel this way?" (ignoring his answer)"""
+Key: Always acknowledge and build on Jeremy's specific answers. When he asks "what do you think" or similar, refer to what was just discussed."""
         
         return prompt
 
@@ -158,7 +147,8 @@ Assistant:"""
             extra={
                 "has_preferences": bool(user_preferences),
                 "context_length": len(context) if context else 0,
-                "chain_memory_messages": len(self.langchain_memory.chat_memory.messages)
+                "chain_memory_messages": len(self.langchain_memory.chat_memory.messages),
+                "chain_max_tokens": self.langchain_memory.max_token_limit
             }
         )
 
@@ -231,6 +221,6 @@ Assistant:"""
             "custom_message_count": self.conversation_buffer.get_message_count(),
             "custom_max_messages": self.conversation_buffer.max_messages,
             "langchain_message_count": langchain_messages,
-            "langchain_max_messages": self.langchain_memory.k,
+            "langchain_max_tokens": self.langchain_memory.max_token_limit,
             "recent_context": self.conversation_buffer.get_context_string(max_chars=500)
         }
