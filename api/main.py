@@ -20,6 +20,7 @@ from storage.faiss_store import FaissVectorStore
 from storage.chroma_store import ChromaVectorStore
 from integrations.embeddings import OpenAIEmbeddings
 from integrations.openai_integration import OpenAIIntegration
+from integrations.direct_openai import DirectOpenAIChat
 from .models import (
     MemoryCreate,
     MemoryResponse,
@@ -40,6 +41,7 @@ from .models import (
 # Global variables for dependency injection
 memory_engine: Optional[MemoryEngine] = None
 openai_integration: Optional[OpenAIIntegration] = None
+direct_openai_chat: Optional[DirectOpenAIChat] = None
 memory_manager: Optional[MemoryManager] = None
 logger = get_logger("api")
 
@@ -56,7 +58,7 @@ async def lifespan(app: FastAPI):
 
 async def startup_event():
     """Initialize the memory system on startup"""
-    global memory_engine, openai_integration, memory_manager
+    global memory_engine, openai_integration, direct_openai_chat, memory_manager
 
     try:
         logger.info("Starting AI Memory Layer API initialization")
@@ -105,8 +107,15 @@ async def startup_event():
             persist_path=memory_persist_path,
         )
 
-        # Initialize OpenAI integration
+        # Initialize OpenAI integration (legacy)
         openai_integration = OpenAIIntegration(
+            api_key=api_key,
+            memory_engine=memory_engine,
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        )
+        
+        # Initialize Direct OpenAI Chat (new clean approach)
+        direct_openai_chat = DirectOpenAIChat(
             api_key=api_key,
             memory_engine=memory_engine,
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
@@ -212,6 +221,16 @@ def get_openai_integration() -> OpenAIIntegration:
             detail="OpenAI integration not initialized",
         )
     return openai_integration
+
+
+# Dependency to get direct OpenAI chat
+def get_direct_openai_chat() -> DirectOpenAIChat:
+    if not direct_openai_chat:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Direct OpenAI chat not initialized",
+        )
+    return direct_openai_chat
 
 
 # Dependency to get memory manager
@@ -336,48 +355,43 @@ async def clear_memories(engine: MemoryEngine = Depends(get_memory_engine)):
 # Chat endpoints
 @app.post("/chat", response_model=ChatResponse)
 async def chat_with_memory(
-    chat_data: ChatRequest, ai: OpenAIIntegration = Depends(get_openai_integration)
+    chat_data: ChatRequest, 
+    direct_chat: DirectOpenAIChat = Depends(get_direct_openai_chat),
+    request: Request = None
 ):
-    """Chat with AI using memory context"""
+    """Chat with AI using direct OpenAI integration (no LangChain)"""
+    start_time = time.time()
+    
     try:
-        # Add debug logging directly in chat endpoint
-        logger.info("CHAT_DEBUG: Starting chat_with_memory", extra={
-            "message": chat_data.message[:100],
-            "include_recent": chat_data.include_recent,
-            "include_relevant": chat_data.include_relevant,
+        logger.info("Direct chat request received", extra={
+            "message_length": len(chat_data.message),
             "thread_id": chat_data.thread_id,
-            "openai_integration_class": ai.__class__.__name__
+            "model": direct_chat.model
         })
-        response = ai.chat_with_memory(
+        
+        # Use the clean direct approach
+        response, messages_context = direct_chat.chat(
             message=chat_data.message,
-            system_prompt=chat_data.system_prompt,
-            include_recent=chat_data.include_recent,
-            include_relevant=chat_data.include_relevant,
-            remember_response=chat_data.remember_response,
             thread_id=chat_data.thread_id,
+            system_prompt=chat_data.system_prompt,
+            remember_response=chat_data.remember_response,
         )
         
-        # Log the response we got back
-        logger.info("CHAT_DEBUG: Received response", extra={
+        # Build context string for debugging
+        context_summary = f"Messages sent to OpenAI: {len(messages_context)} total"
+        
+        processing_time = time.time() - start_time
+        logger.info("Direct chat response generated", extra={
             "response_length": len(response),
-            "response_preview": response[:200]
+            "processing_time_ms": round(processing_time * 1000, 2),
+            "messages_count": len(messages_context),
+            "thread_id": chat_data.thread_id
         })
 
-        # Get context for response (optional)
-        context = None
-        try:
-            context = ai.context_builder.build_context(
-                query=chat_data.message,
-                include_recent=chat_data.include_recent,
-                include_relevant=chat_data.include_relevant,
-            )
-        except Exception:
-            pass  # Context is optional
-
-        return ChatResponse(
-            response=response, context_used=context if context else None
-        )
+        return ChatResponse(response=response, context_used=context_summary)
+        
     except Exception as e:
+        logger.error("Direct chat failed", extra={"error": str(e)}, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail=f"Chat failed: {str(e)}"
         )
