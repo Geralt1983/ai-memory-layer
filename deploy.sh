@@ -64,10 +64,13 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Update the web interface with version
-# First check if nginx is serving from /var/www/html or the project directory
+# First update the version in the source file
+sed -i "s/v[0-9]*\.[0-9]*\.[0-9]*/v$NEW_VERSION/g" ~/ai-memory-layer/web_interface_enhanced.html
+
+# Then copy to nginx directory
 if [ -f /var/www/html/index.html ]; then
     sudo cp ~/ai-memory-layer/web_interface_enhanced.html /var/www/html/index.html
-    echo "Updated /var/www/html/index.html"
+    echo "Updated /var/www/html/index.html with version v$NEW_VERSION"
 else
     echo "Web interface served from project directory"
 fi
