@@ -72,11 +72,36 @@ class LangGraphConversation:
             user_input = state["user_input"]
             
             try:
-                # Get recent context from conversation history
-                recent_messages = state["messages"][-10:]  # Last 10 messages
+                # Get recent context from conversation history with smart prioritization
+                all_messages = state["messages"]
+                
+                # Always keep the most recent messages
+                recent_messages = all_messages[-20:] if len(all_messages) > 20 else all_messages
+                
+                # Also include any messages that contain task/project keywords to maintain context
+                important_keywords = ["task", "project", "decision", "status", "approach", "priority", "implement", "finish", "complete"]
+                important_messages = []
+                
+                if len(all_messages) > 20:
+                    # Look for important messages in the older history
+                    older_messages = all_messages[:-20]
+                    for msg in older_messages[-30:]:  # Check last 30 older messages
+                        content_lower = msg.content.lower()
+                        if any(keyword in content_lower for keyword in important_keywords):
+                            important_messages.append(msg)
+                
+                # Combine important messages with recent ones, avoiding duplicates
+                combined_messages = important_messages + recent_messages
+                seen_content = set()
+                deduplicated_messages = []
+                for msg in combined_messages:
+                    if msg.content not in seen_content:
+                        deduplicated_messages.append(msg)
+                        seen_content.add(msg.content)
+                
                 recent_context = "\n".join([
                     f"{msg.__class__.__name__}: {msg.content}"
-                    for msg in recent_messages
+                    for msg in deduplicated_messages[-25:]  # Keep max 25 messages total
                 ])
                 
                 # Get relevant memories from persistent storage
@@ -85,12 +110,21 @@ class LangGraphConversation:
                     f"- {memory.content}" for memory in relevant_memories
                 ])
                 
-                # Combine contexts
+                # Combine contexts with better structure
                 full_context = ""
                 if recent_context:
-                    full_context += f"## Recent Conversation:\n{recent_context}\n\n"
+                    full_context += f"## Recent Context:\n{recent_context}\n\n"
                 if memory_context:
-                    full_context += f"## Relevant Memories:\n{memory_context}"
+                    full_context += f"## Relevant Context:\n{memory_context}"
+                
+                # Add explicit instruction to use the context
+                if full_context:
+                    full_context = f"""IMPORTANT: Use the context below to understand what has been discussed. Pay special attention to:
+- Tasks, projects, or work Jeremy mentioned
+- Decisions or approaches discussed
+- Any ongoing topics or priorities
+
+{full_context}"""
                 
                 state["context"] = full_context
                 
@@ -127,8 +161,8 @@ class LangGraphConversation:
                 if system_prompt:
                     messages.append(("system", system_prompt))
                 
-                # Add recent conversation history (last 6 messages to stay within context)
-                recent_messages = state["messages"][-6:]
+                # Add recent conversation history (last 12 messages for better context retention)
+                recent_messages = state["messages"][-12:]
                 for msg in recent_messages:
                     if isinstance(msg, HumanMessage):
                         messages.append(("human", msg.content))
@@ -225,17 +259,19 @@ class LangGraphConversation:
     
     def _build_system_prompt(self, context: str) -> str:
         """Build system prompt with context"""
-        base_prompt = """You're Jeremy's AI assistant with persistent memory. Pay close attention to conversation flow and context.
+        base_prompt = """You're Jeremy's AI assistant with persistent memory. Pay close attention to conversation flow and context throughout the ENTIRE conversation.
 
 About Jeremy: 41 years old, wife Ashley, 7 kids, dogs Remy & Bailey. Direct communicator who dislikes generic responses.
 
 CRITICAL CONTEXT RULES:
-- Always reference what was JUST discussed in the last few messages
+- ALWAYS reference what was discussed throughout the conversation, not just recent messages
 - When Jeremy says "yes"/"okay"/"sure" = confirmation of what was just mentioned
-- When Jeremy asks "what do you think"/"which tasks" = refer to specific items just mentioned  
-- When Jeremy asks vague questions, connect them to the immediate conversation context
-- NEVER give generic advice when specific context exists
-- Always check: what tasks, topics, or decisions were mentioned in recent messages?"""
+- When Jeremy asks "what do you think"/"which tasks"/"suggested approach" = refer to specific items mentioned earlier in conversation
+- When Jeremy asks vague questions, connect them to ALL relevant conversation context, including earlier topics
+- NEVER give generic advice when specific context exists from ANY point in the conversation
+- Always check: what tasks, topics, decisions, or approaches were mentioned throughout this conversation?
+- Maintain awareness of ongoing projects and tasks mentioned earlier, even if many messages have passed
+- If Jeremy references something vaguely, look for it in the entire conversation history provided"""
         
         if context:
             return f"{base_prompt}\n\nCONTEXT:\n{context}"

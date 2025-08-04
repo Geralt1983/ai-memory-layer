@@ -5,10 +5,26 @@ All notable changes to the AI Memory Layer project will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.8.9] - 2025-08-04
+## [1.9.1] - 2025-08-04
 
 ### Changed
-- 
+- fix: enhanced LangGraph context retention with smart message prioritization
+
+## [1.9.0] - 2025-08-04
+
+### Fixed
+- Enhanced LangGraph context retention with smart message prioritization (20→25 messages)
+- Improved system prompt to maintain awareness throughout entire conversation history
+- Added keyword-based important message preservation for long conversations
+- Better context structure with explicit instructions for contextual reference handling
+
+## [1.8.9] - 2025-08-04
+
+### Fixed
+- Implemented thread_id support in web interface and API for proper conversation context retention
+- Successfully deployed LangGraph-based conversation system to replace deprecated ConversationChain
+- Verified contextual reference handling now works correctly ("what do you think", "sure", "which one", etc.)
+- Added fallback mechanism for LangGraph dependencies with graceful degradation to legacy system
 
 ## [1.8.8] - 2025-08-04
 
