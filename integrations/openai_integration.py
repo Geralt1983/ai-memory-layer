@@ -121,30 +121,25 @@ Key: Always acknowledge and build on Jeremy's specific answers. When he asks "wh
             include_relevant=include_relevant,
         )
         
-        # Build enhanced system prompt and inject it into the conversation chain
+        # Let LangChain handle conversation naturally without custom prompt injection
+        # Only inject system context if explicitly provided
         if system_prompt:
-            enhanced_system_prompt = system_prompt
-        else:
-            enhanced_system_prompt = self._build_system_prompt(user_preferences, context)
-        
-        # Update the conversation chain's prompt template with our enhanced system prompt
-        from langchain.prompts import PromptTemplate
-        
-        custom_prompt = PromptTemplate(
-            input_variables=["history", "input"],
-            template=f"""{enhanced_system_prompt}
+            from langchain.prompts import PromptTemplate
+            custom_prompt = PromptTemplate(
+                input_variables=["history", "input"],
+                template=f"""{system_prompt}
 
 Current conversation:
 {{history}}
 Human: {{input}}
 Assistant:"""
-        )
-        
-        self.conversation_chain.prompt = custom_prompt
+            )
+            self.conversation_chain.prompt = custom_prompt
         
         self.logger.debug(
-            "Using LangChain ConversationChain with enhanced prompt", 
+            "Using LangChain ConversationChain", 
             extra={
+                "has_custom_prompt": system_prompt is not None,
                 "has_preferences": bool(user_preferences),
                 "context_length": len(context) if context else 0,
                 "chain_memory_messages": len(self.langchain_memory.chat_memory.messages),
