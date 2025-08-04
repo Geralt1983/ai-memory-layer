@@ -49,54 +49,22 @@ class OpenAIIntegration:
             return "\n".join(set(preferences))  # Remove duplicates
         return ""
     
-    def _build_system_prompt(self, user_preferences: str, context: str, conversation_context: str = "") -> str:
-        """Build an enhanced system prompt with user preferences, long-term context, and recent conversation"""
-        base_prompt = """You are an AI assistant with persistent memory. You have both long-term memory (past conversations and knowledge) and short-term memory (recent conversation context). MUST adapt your responses based on the user's explicitly stated preferences and feedback."""
+    def _build_system_prompt(self, user_preferences: str, context: str) -> str:
+        """Build a concise system prompt focused on personality and memory usage"""
+        prompt_parts = []
         
-        prompt_parts = [base_prompt]
+        # Core personality - make it engaging and human-like
+        prompt_parts.append("You're Jeremy's AI assistant with persistent memory. Be direct, engaging, and reference what you know about him from past conversations.")
         
         if user_preferences:
-            prompt_parts.append(f"""
-## CRITICAL USER PREFERENCES - MUST FOLLOW:
-{user_preferences}
-
-⚠️ MANDATORY: The user has explicitly told you how they want you to communicate. You MUST follow these preferences strictly:
-- If they want you to be "direct" - be direct, not verbose
-- If they want you to be "less cheery" - be more neutral/serious
-- If they want "human-like" responses - avoid AI-like formatting and be conversational
-- If they said "avoid generic answers" - give specific, personalized responses
-- If they called responses "canned" - be more natural and spontaneous
-
-IGNORE your default response style and adapt completely to their stated preferences.""")
-        
-        if conversation_context:
-            prompt_parts.append(f"""
-## Recent Conversation Context:
-{conversation_context}
-
-This is your recent conversation with the user. Use this to maintain context and avoid repeating questions or information.""")
+            prompt_parts.append(f"User preferences: {user_preferences}")
         
         if context:
-            prompt_parts.append(f"""
-## Relevant Long-term Memory:
-{context}
-
-This is relevant information from past conversations and stored knowledge. Use this to personalize your response.""")
+            prompt_parts.append(f"Relevant memories: {context}")
         
-        prompt_parts.append("""
-## RESPONSE REQUIREMENTS:
-1. FIRST check user preferences above and adapt your entire response style accordingly
-2. Reference the user's past conversations and stated preferences
-3. Be authentic and avoid generic, templated responses  
-4. If the user has corrected your behavior before, remember and apply those corrections
-5. Make your response feel natural and personalized to this specific user
-6. CRITICAL: If you already know information about the user from past conversations, USE that knowledge instead of asking again
-7. Don't ask questions about things you already know (like asking for names you already have)
-8. Build on existing knowledge rather than starting over
-
-Remember: The user has a memory system specifically so you can learn their preferences and adapt. USE IT INTELLIGENTLY.""")
+        prompt_parts.append("Don't ask for info you already know. Be conversational, not robotic.")
         
-        return "\n".join(prompt_parts)
+        return "\n\n".join(prompt_parts)
 
     @monitor_performance("chat_with_memory")
     def chat_with_memory(
@@ -130,21 +98,18 @@ Remember: The user has a memory system specifically so you can learn their prefe
             include_relevant=include_relevant,
         )
         
-        # Get recent conversation context
-        conversation_context = self.conversation_buffer.get_context_string(max_chars=1500)
-
-        # Prepare messages with enhanced system prompt
+        # Prepare messages with system prompt (no duplicate conversation context)
         messages = []
         
         if system_prompt:
             # Use provided system prompt
             messages.append({"role": "system", "content": system_prompt})
         else:
-            # Build enhanced system prompt with preferences, context, and conversation
-            enhanced_system_prompt = self._build_system_prompt(user_preferences, context, conversation_context)
+            # Build concise system prompt with preferences and long-term context only
+            enhanced_system_prompt = self._build_system_prompt(user_preferences, context)
             messages.append({"role": "system", "content": enhanced_system_prompt})
             self.logger.debug(
-                "Enhanced system prompt created", 
+                "System prompt created", 
                 extra={
                     "has_preferences": bool(user_preferences),
                     "context_length": len(context) if context else 0,
@@ -152,7 +117,7 @@ Remember: The user has a memory system specifically so you can learn their prefe
                 }
             )
 
-        # Add recent conversation messages for immediate context
+        # Add recent conversation messages (this provides the conversation context)
         recent_messages = self.conversation_buffer.get_messages()
         messages.extend(recent_messages)
         
