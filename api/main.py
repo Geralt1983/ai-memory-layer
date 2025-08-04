@@ -340,6 +340,13 @@ async def chat_with_memory(
 ):
     """Chat with AI using memory context"""
     try:
+        # Add debug logging directly in chat endpoint
+        logger.info("CHAT_DEBUG: Starting chat_with_memory", extra={
+            "message": chat_data.message[:100],
+            "include_recent": chat_data.include_recent,
+            "include_relevant": chat_data.include_relevant,
+            "openai_integration_class": ai.__class__.__name__
+        })
         response = ai.chat_with_memory(
             message=chat_data.message,
             system_prompt=chat_data.system_prompt,
@@ -347,6 +354,12 @@ async def chat_with_memory(
             include_relevant=chat_data.include_relevant,
             remember_response=chat_data.remember_response,
         )
+        
+        # Log the response we got back
+        logger.info("CHAT_DEBUG: Received response", extra={
+            "response_length": len(response),
+            "response_preview": response[:200]
+        })
 
         # Get context for response (optional)
         context = None
