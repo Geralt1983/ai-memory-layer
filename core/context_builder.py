@@ -14,12 +14,23 @@ class ContextBuilder:
         include_relevant: int = 5,
     ) -> str:
         context_parts = []
+        
+        # Always include user profile information
+        profile_memories = self.memory_engine.search_memories("Jeremy wife Ashley kids dogs age", k=10)
+        important_info = []
+        for memory in profile_memories:
+            if memory.relevance_score > 0.5:
+                important_info.append(memory.content)
+        
+        if important_info:
+            context_parts.append("Key information about Jeremy:")
+            context_parts.extend(important_info[:5])  # Top 5 most relevant
 
         # Add recent memories
         if include_recent > 0:
             recent_memories = self.memory_engine.get_recent_memories(include_recent)
             if recent_memories:
-                context_parts.append("## Recent Context:")
+                context_parts.append("\nRecent conversations:")
                 for memory in recent_memories:
                     context_parts.append(f"- {memory.content}")
 
@@ -29,12 +40,10 @@ class ContextBuilder:
                 query, include_relevant
             )
             if relevant_memories:
-                context_parts.append("\n## Relevant Context:")
+                context_parts.append(f"\nRelevant to '{query}':")
                 for memory in relevant_memories:
-                    context_parts.append(
-                        f"- {memory.content} "
-                        f"(relevance: {memory.relevance_score:.2f})"
-                    )
+                    if memory.relevance_score > 0.6:  # Only high relevance
+                        context_parts.append(f"- {memory.content}")
 
         # Join and truncate if necessary
         context = "\n".join(context_parts)

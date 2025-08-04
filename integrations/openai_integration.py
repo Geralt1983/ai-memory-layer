@@ -50,21 +50,22 @@ class OpenAIIntegration:
         return ""
     
     def _build_system_prompt(self, user_preferences: str, context: str) -> str:
-        """Build a concise system prompt focused on personality and memory usage"""
-        prompt_parts = []
+        """Build a directive system prompt that forces specific, helpful responses"""
+        prompt = f"""You're Jeremy's AI assistant. CRITICAL RULES:
+1. Give SPECIFIC, ACTIONABLE advice - never vague platitudes
+2. When he mentions productivity, suggest CONCRETE tools/methods (Pomodoro, specific apps, etc.)
+3. Reference his context: 7 kids, wife Ashley, dogs Remy & Bailey, age 41
+4. Be direct and conversational - he hates generic AI responses
+5. If he says "yeah that's fine" he's being polite - dig deeper and provide VALUE
+
+What you know about Jeremy:
+{context if context else "Loading memories..."}
+
+{f"His preferences: {user_preferences}" if user_preferences else ""}
+
+NEVER give generic responses like "there are many strategies" or "feel free to let me know". Always be specific and helpful."""
         
-        # Core personality - make it engaging and human-like
-        prompt_parts.append("You're Jeremy's AI assistant with persistent memory. Be direct, engaging, and reference what you know about him from past conversations.")
-        
-        if user_preferences:
-            prompt_parts.append(f"User preferences: {user_preferences}")
-        
-        if context:
-            prompt_parts.append(f"Relevant memories: {context}")
-        
-        prompt_parts.append("Don't ask for info you already know. Be conversational, not robotic.")
-        
-        return "\n\n".join(prompt_parts)
+        return prompt
 
     @monitor_performance("chat_with_memory")
     def chat_with_memory(
