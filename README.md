@@ -4,7 +4,7 @@ A persistent memory system for AI assistants with semantic search, vector storag
 
 ## Version
 
-**v1.2.1** - Production Release (2024-08-04)
+**v1.2.2** - Production Release (2024-08-04)
 
 ## Features
 
@@ -143,4 +143,4 @@ Jeremy - AI Memory Layer Project
 
 ---
 
-**Deployed Version**: v1.2.1 | **Last Updated**: 2024-08-04
+**Deployed Version**: v1.2.2 | **Last Updated**: 2024-08-04
