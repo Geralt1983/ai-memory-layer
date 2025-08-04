@@ -10,7 +10,12 @@ from langchain.memory import ConversationSummaryBufferMemory
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationChain
-from .langgraph_conversation import LangGraphConversation
+try:
+    from .langgraph_conversation import LangGraphConversation
+    LANGGRAPH_AVAILABLE = True
+except ImportError as e:
+    LangGraphConversation = None
+    LANGGRAPH_AVAILABLE = False
 
 
 class OpenAIIntegration:
@@ -29,12 +34,16 @@ class OpenAIIntegration:
         self.context_builder = ContextBuilder(memory_engine)
         
         # Initialize LangGraph conversation system (replaces deprecated ConversationChain)
-        self.langgraph_conversation = LangGraphConversation(
-            api_key=api_key,
-            memory_engine=memory_engine,
-            model=model,
-            temperature=0.7
-        )
+        if LANGGRAPH_AVAILABLE:
+            self.langgraph_conversation = LangGraphConversation(
+                api_key=api_key,
+                memory_engine=memory_engine,
+                model=model,
+                temperature=0.7
+            )
+        else:
+            self.langgraph_conversation = None
+            self.logger.warning("LangGraph not available, falling back to legacy ConversationChain")
         
         # Keep legacy systems for backward compatibility (deprecated)
         self.langchain_chat = ChatOpenAI(
@@ -136,8 +145,8 @@ Key: Always acknowledge and build on Jeremy's specific answers. When he asks "wh
         thread_id: str = "default",
         use_langgraph: bool = True,
     ) -> str:
-        # Use the new LangGraph system by default
-        if use_langgraph:
+        # Use the new LangGraph system by default (if available)
+        if use_langgraph and LANGGRAPH_AVAILABLE and self.langgraph_conversation:
             self.logger.info(
                 "Starting chat with LangGraph conversation system",
                 extra={
