@@ -3,6 +3,7 @@ from openai import OpenAI
 import numpy as np
 from core.memory_engine import Memory, MemoryEngine
 from core.context_builder import ContextBuilder
+from core.conversation_buffer import ConversationBuffer
 from core.logging_config import get_logger, monitor_performance
 from .embeddings import OpenAIEmbeddings
 
@@ -14,12 +15,14 @@ class OpenAIIntegration:
         memory_engine: MemoryEngine,
         model: str = "gpt-3.5-turbo",
         embedding_model: str = "text-embedding-ada-002",
+        conversation_buffer_size: int = 20,
     ):
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self.memory_engine = memory_engine
         self.embeddings = OpenAIEmbeddings(api_key, embedding_model)
         self.context_builder = ContextBuilder(memory_engine)
+        self.conversation_buffer = ConversationBuffer(max_messages=conversation_buffer_size)
         self.logger = get_logger("openai_integration")
 
         self.logger.info(
@@ -46,9 +49,9 @@ class OpenAIIntegration:
             return "\n".join(set(preferences))  # Remove duplicates
         return ""
     
-    def _build_system_prompt(self, user_preferences: str, context: str) -> str:
-        """Build an enhanced system prompt with user preferences and context"""
-        base_prompt = """You are an AI assistant with persistent memory. You remember past conversations and MUST adapt your responses based on the user's explicitly stated preferences and feedback."""
+    def _build_system_prompt(self, user_preferences: str, context: str, conversation_context: str = "") -> str:
+        """Build an enhanced system prompt with user preferences, long-term context, and recent conversation"""
+        base_prompt = """You are an AI assistant with persistent memory. You have both long-term memory (past conversations and knowledge) and short-term memory (recent conversation context). MUST adapt your responses based on the user's explicitly stated preferences and feedback."""
         
         prompt_parts = [base_prompt]
         
@@ -66,12 +69,19 @@ class OpenAIIntegration:
 
 IGNORE your default response style and adapt completely to their stated preferences.""")
         
+        if conversation_context:
+            prompt_parts.append(f"""
+## Recent Conversation Context:
+{conversation_context}
+
+This is your recent conversation with the user. Use this to maintain context and avoid repeating questions or information.""")
+        
         if context:
             prompt_parts.append(f"""
-## Relevant Context from Past Conversations:
+## Relevant Long-term Memory:
 {context}
 
-Use this context to personalize your response and reference relevant past interactions.""")
+This is relevant information from past conversations and stored knowledge. Use this to personalize your response.""")
         
         prompt_parts.append("""
 ## RESPONSE REQUIREMENTS:
@@ -112,13 +122,16 @@ Remember: The user has a memory system specifically so you can learn their prefe
         self.logger.debug("Extracting user preferences from memory")
         user_preferences = self._extract_user_preferences()
         
-        # Build context from memory
-        self.logger.debug("Building context from memory")
+        # Build context from long-term memory
+        self.logger.debug("Building context from long-term memory")
         context = self.context_builder.build_context(
             query=message,
             include_recent=include_recent,
             include_relevant=include_relevant,
         )
+        
+        # Get recent conversation context
+        conversation_context = self.conversation_buffer.get_context_string(max_chars=1500)
 
         # Prepare messages with enhanced system prompt
         messages = []
@@ -127,17 +140,23 @@ Remember: The user has a memory system specifically so you can learn their prefe
             # Use provided system prompt
             messages.append({"role": "system", "content": system_prompt})
         else:
-            # Build enhanced system prompt with preferences and context
-            enhanced_system_prompt = self._build_system_prompt(user_preferences, context)
+            # Build enhanced system prompt with preferences, context, and conversation
+            enhanced_system_prompt = self._build_system_prompt(user_preferences, context, conversation_context)
             messages.append({"role": "system", "content": enhanced_system_prompt})
             self.logger.debug(
                 "Enhanced system prompt created", 
                 extra={
                     "has_preferences": bool(user_preferences),
-                    "context_length": len(context) if context else 0
+                    "context_length": len(context) if context else 0,
+                    "conversation_messages": self.conversation_buffer.get_message_count()
                 }
             )
 
+        # Add recent conversation messages for immediate context
+        recent_messages = self.conversation_buffer.get_messages()
+        messages.extend(recent_messages)
+        
+        # Add current user message
         messages.append({"role": "user", "content": message})
 
         # Get response from OpenAI
@@ -173,6 +192,10 @@ Remember: The user has a memory system specifically so you can learn their prefe
         if remember_response:
             self.logger.debug("Storing conversation in memory")
 
+            # Add to conversation buffer (short-term memory)
+            self.conversation_buffer.add_message("user", message)
+            self.conversation_buffer.add_message("assistant", answer)
+
             # Store user message (MemoryEngine will handle embedding generation)
             self.memory_engine.add_memory(
                 f"User: {message}", metadata={"type": "user_message"}
@@ -183,7 +206,7 @@ Remember: The user has a memory system specifically so you can learn their prefe
                 f"Assistant: {answer}", metadata={"type": "assistant_response"}
             )
 
-            self.logger.debug("Conversation stored in memory successfully")
+            self.logger.debug("Conversation stored in both buffer and persistent memory successfully")
 
         self.logger.info(
             "Chat with memory completed successfully",
@@ -200,3 +223,16 @@ Remember: The user has a memory system specifically so you can learn their prefe
     ) -> Memory:
         # MemoryEngine now handles embedding generation internally
         return self.memory_engine.add_memory(content, metadata)
+    
+    def clear_conversation_buffer(self) -> None:
+        """Clear the conversation buffer (start fresh conversation)."""
+        self.conversation_buffer.clear()
+        self.logger.info("Conversation buffer cleared")
+    
+    def get_conversation_buffer_info(self) -> Dict[str, Any]:
+        """Get information about the current conversation buffer."""
+        return {
+            "message_count": self.conversation_buffer.get_message_count(),
+            "max_messages": self.conversation_buffer.max_messages,
+            "recent_context": self.conversation_buffer.get_context_string(max_chars=500)
+        }
