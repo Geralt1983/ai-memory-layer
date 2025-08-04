@@ -109,7 +109,7 @@ async def startup_event():
         openai_integration = OpenAIIntegration(
             api_key=api_key,
             memory_engine=memory_engine,
-            model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
         )
 
         # Initialize memory manager
