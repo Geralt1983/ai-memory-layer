@@ -41,10 +41,36 @@ class OpenAIIntegration:
             memory_key="history"
         )
         
-        # This is the key - use LangChain's ConversationChain which handles flow properly
+        # Create custom prompt template that includes our system prompt
+        from langchain.prompts import PromptTemplate
+        
+        # This template combines our system prompt with conversation history
+        custom_template = """You're Jeremy's AI assistant with persistent memory. Pay close attention to conversation flow and context.
+
+About Jeremy: 41 years old, wife Ashley, 7 kids, dogs Remy & Bailey. Direct communicator who dislikes generic responses.
+
+Key conversation rules:
+- Always acknowledge and build on Jeremy's specific answers
+- When he says "yes", "okay", "sure" etc., treat it as confirmation, not uncertainty  
+- When he asks "what do you think" refer specifically to what was just discussed
+- Avoid generic phrases like "Great to hear you're on board"
+- Be direct, specific, and contextually relevant
+
+Current conversation:
+{history}
+Human: {input}
+AI Assistant:"""
+
+        custom_prompt = PromptTemplate(
+            input_variables=["history", "input"],
+            template=custom_template
+        )
+        
+        # This is the key - use LangChain's ConversationChain with our custom prompt
         self.conversation_chain = ConversationChain(
             llm=self.langchain_chat,
             memory=self.langchain_memory,
+            prompt=custom_prompt,  # Use our custom prompt instead of default
             verbose=True  # Enable to debug what LangChain is actually doing
         )
         
