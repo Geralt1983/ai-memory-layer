@@ -64,7 +64,13 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # Update the web interface with version
-sudo sed -i "s/<small>v[0-9]*\.[0-9]*\.[0-9]*<\/small>/<small>v$NEW_VERSION<\/small>/g" /var/www/html/index.html
+# First check if nginx is serving from /var/www/html or the project directory
+if [ -f /var/www/html/index.html ]; then
+    sudo cp ~/ai-memory-layer/web_interface_enhanced.html /var/www/html/index.html
+    echo "Updated /var/www/html/index.html"
+else
+    echo "Web interface served from project directory"
+fi
 
 # Restart service
 sudo systemctl restart ai-memory.service
