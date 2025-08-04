@@ -36,7 +36,7 @@ class OpenAIIntegration:
         
         self.langchain_memory = ConversationSummaryBufferMemory(
             llm=self.langchain_chat,
-            max_token_limit=2000,  # Keep recent messages + summaries
+            max_token_limit=4000,  # Increased from 2000 - keep more context
             return_messages=False,  # Return as string for ConversationChain
             memory_key="history"
         )
@@ -150,13 +150,29 @@ Assistant:"""
         try:
             # Debug: Log what's actually in the memory before making the call
             memory_content = self.langchain_memory.buffer
-            self.logger.debug(
-                "Memory content before LangChain call",
+            chat_messages = self.langchain_memory.chat_memory.messages
+            
+            self.logger.info(
+                "ConversationSummaryBufferMemory Debug",
                 extra={
-                    "memory_content": memory_content[:500] + "..." if len(memory_content) > 500 else memory_content,
-                    "memory_length": len(memory_content)
+                    "memory_buffer": memory_content[:1000] + "..." if len(memory_content) > 1000 else memory_content,
+                    "buffer_length": len(memory_content),
+                    "chat_messages_count": len(chat_messages),
+                    "max_token_limit": self.langchain_memory.max_token_limit,
+                    "current_message": message
                 }
             )
+            
+            # Debug: Log the last few chat messages to see what's being kept
+            if chat_messages:
+                recent_messages = []
+                for msg in chat_messages[-6:]:  # Last 3 exchanges (6 messages)
+                    recent_messages.append(f"{msg.__class__.__name__}: {msg.content}")
+                
+                self.logger.info(
+                    "Recent chat messages in memory",
+                    extra={"recent_messages": recent_messages}
+                )
             
             # Use LangChain's conversation chain - this handles conversation flow properly!
             answer = self.conversation_chain.predict(input=message)
