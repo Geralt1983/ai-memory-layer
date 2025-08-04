@@ -150,6 +150,36 @@ class MemoryEngine:
         )
 
         return memory
+    
+    def add_identity_correction(self, correction: str, context: str = "") -> Memory:
+        """Add a high-priority identity/correction memory that will always be included"""
+        correction_content = f"IDENTITY CORRECTION: {correction}"
+        if context:
+            correction_content += f" Context: {context}"
+        
+        metadata = {
+            "type": "correction",
+            "priority": "high",
+            "category": "identity",
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        # Remove any existing similar corrections to avoid duplicates
+        self.memories = [m for m in self.memories 
+                        if not (m.metadata.get("type") == "correction" and 
+                               correction.lower() in m.content.lower())]
+        
+        self.logger.info(f"Adding identity correction: {correction}")
+        return self.add_memory(correction_content, metadata)
+    
+    def get_high_priority_memories(self, limit: int = 3) -> List[Memory]:
+        """Get high-priority memories (corrections, identity info) for system context"""
+        high_priority = [m for m in self.memories 
+                        if m.metadata.get("priority") == "high"]
+        
+        # Sort by recency
+        high_priority.sort(key=lambda m: m.timestamp, reverse=True)
+        return high_priority[:limit]
 
     @monitor_performance("search_memories")
     def search_memories(self, query: str, k: int = 5) -> List[Memory]:

@@ -141,15 +141,18 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
     
     def _create_behavior_log(self) -> str:
         """Create past behavior expectations for consistency"""
-        return """Past interaction patterns: The assistant is expected to avoid caveats, provide formatted code when asked, speak like a capable peer (not customer support), reference conversation history naturally, and maintain continuity across topics without restarting context."""
+        return """Past interaction patterns: The assistant is expected to avoid caveats, provide formatted code when asked, speak like a capable peer (not customer support), reference conversation history naturally, and maintain continuity across topics without restarting context. CRITICAL: Short responses or single words are usually replies to previous questions, not new topics or name declarations."""
     
     def _get_conversation_messages(self, thread_id: str, limit: int = 10) -> List[Dict[str, str]]:
-        """Get recent conversation messages for a thread"""
+        """Get recent conversation messages for a thread - ALWAYS maintain at least 3-5 exchanges"""
         if thread_id not in self.conversations:
             self.conversations[thread_id] = []
         
+        # Ensure we keep at least 6 messages (3 user-assistant exchanges) minimum
+        effective_limit = max(limit, 6) if limit > 0 else 0
+        
         # Return the last N messages (both user and assistant)
-        return self.conversations[thread_id][-limit:] if limit > 0 else self.conversations[thread_id]
+        return self.conversations[thread_id][-effective_limit:] if effective_limit > 0 else self.conversations[thread_id]
     
     def _add_to_conversation(self, thread_id: str, role: str, content: str):
         """Add a message to conversation history"""
@@ -167,6 +170,52 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
             self.conversations[thread_id] = self.conversations[thread_id][-50:]
         
         self._save_conversation_history()
+    
+    def _classify_input_type(self, user_input: str, thread_id: str) -> str:
+        """Classify user input to distinguish replies from new topics"""
+        # Get recent conversation to check context
+        recent_messages = self._get_conversation_messages(thread_id, limit=4)
+        
+        # If input is very short and follows an assistant question, it's likely a reply
+        if len(user_input.split()) <= 3 and recent_messages:
+            # Check if the last assistant message ended with a question
+            last_assistant_msg = None
+            for msg in reversed(recent_messages):
+                if msg["role"] == "assistant":
+                    last_assistant_msg = msg["content"]
+                    break
+            
+            if last_assistant_msg and ("?" in last_assistant_msg or 
+                                     "what" in last_assistant_msg.lower() or
+                                     "which" in last_assistant_msg.lower() or
+                                     "how" in last_assistant_msg.lower()):
+                return "reply"
+        
+        # Check for common greeting patterns
+        greeting_patterns = ["hello", "hi", "hey", "good morning", "good afternoon"]
+        if any(pattern in user_input.lower() for pattern in greeting_patterns):
+            return "greeting"
+        
+        # Check for meta/system references
+        meta_patterns = ["claude", "ai", "assistant", "system", "model"]
+        if any(pattern in user_input.lower() for pattern in meta_patterns) and len(user_input.split()) < 5:
+            return "meta"
+        
+        # Default to topic for longer messages
+        return "topic"
+    
+    def _disambiguate_user_input(self, user_input: str, thread_id: str) -> str:
+        """Disambiguate user input based on conversational context"""
+        input_type = self._classify_input_type(user_input, thread_id)
+        
+        if input_type == "reply":
+            return f"User replied: {user_input}"
+        elif input_type == "meta" and "claude" in user_input.lower():
+            # Special handling for "Claude Code" type responses
+            return f"User answered with: {user_input} (referring to what they're working on, not their name)"
+        
+        # Return original input for greetings and topics
+        return user_input
     
     def _build_messages_array(
         self,
@@ -189,7 +238,17 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         # 3. Behavior expectations for consistency
         messages.append({"role": "system", "content": self._create_behavior_log()})
         
-        # 4. Sophisticated memory injection (rewritten for natural context)
+        # 4. High-priority memories (identity corrections, etc.) - ALWAYS include
+        if hasattr(self.memory_engine, 'get_high_priority_memories'):
+            high_priority_memories = self.memory_engine.get_high_priority_memories(limit=3)
+            if high_priority_memories:
+                priority_content = " | ".join([mem.content for mem in high_priority_memories])
+                messages.append({
+                    "role": "system",
+                    "content": f"CRITICAL CONTEXT (always apply): {priority_content}"
+                })
+        
+        # 5. Sophisticated memory injection (rewritten for natural context)
         if include_memories > 0:
             relevant_memories = self.memory_engine.search_memories(user_message, k=include_memories)
             if relevant_memories:
@@ -200,13 +259,14 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                         "content": f"Background context: {memory_summary}"
                     })
         
-        # 5. Add conversation history (maintain continuity)
+        # 6. Add conversation history (maintain continuity - minimum 3-5 exchanges)
         conversation_history = self._get_conversation_messages(thread_id, limit=20)
         for msg in conversation_history:
             messages.append({"role": msg["role"], "content": msg["content"]})
         
-        # 6. Add current user message
-        messages.append({"role": "user", "content": user_message})
+        # 7. Add current user message with disambiguation
+        disambiguated_message = self._disambiguate_user_input(user_message, thread_id)
+        messages.append({"role": "user", "content": disambiguated_message})
         
         self.logger.debug(
             f"Built GPT-4o optimized message array with {len(messages)} messages for thread {thread_id}",
@@ -271,6 +331,9 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                 self._add_to_conversation(thread_id, "user", message)
                 self._add_to_conversation(thread_id, "assistant", assistant_response)
                 
+                # Detect and store identity corrections
+                self._detect_and_store_corrections(message, assistant_response, thread_id)
+                
                 # Also store in long-term memory for search
                 self.memory_engine.add_memory(
                     f"User: {message}",
@@ -311,3 +374,45 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         ])
         
         return conversation_text[:500] + "..." if len(conversation_text) > 500 else conversation_text
+    
+    def _detect_and_store_corrections(self, user_message: str, assistant_response: str, thread_id: str):
+        """Detect identity corrections and name clarifications from user messages"""
+        user_lower = user_message.lower()
+        assistant_lower = assistant_response.lower()
+        
+        # Detect name corrections
+        name_correction_patterns = [
+            "my name isn't", "my name is not", "i'm not", "don't call me",
+            "not my name", "that's not my name", "wrong name"
+        ]
+        
+        # Detect identity corrections
+        if any(pattern in user_lower for pattern in name_correction_patterns):
+            if hasattr(self.memory_engine, 'add_identity_correction'):
+                self.memory_engine.add_identity_correction(
+                    f"User corrected name/identity: {user_message}",
+                    f"Context: {assistant_response[:100]}..."
+                )
+                self.logger.info(f"Stored identity correction for thread {thread_id}")
+        
+        # Detect "Claude Code" type clarifications
+        if ("claude" in user_lower and len(user_message.split()) <= 3 and 
+            "what" in assistant_lower and "working" in assistant_lower):
+            if hasattr(self.memory_engine, 'add_identity_correction'):
+                self.memory_engine.add_identity_correction(
+                    f"When user says '{user_message}', they're answering what they're working on, not stating their name",
+                    f"Context: Previous question about work/projects"
+                )
+                self.logger.info(f"Stored work context clarification for thread {thread_id}")
+        
+        # Detect meta-conversation corrections
+        if "you actually" in user_lower or "you were" in user_lower:
+            recent_history = self._get_conversation_messages(thread_id, limit=6)
+            if len(recent_history) >= 2:
+                context = f"User correcting assistant behavior: {user_message}"
+                if hasattr(self.memory_engine, 'add_identity_correction'):
+                    self.memory_engine.add_identity_correction(
+                        context,
+                        f"Assistant should maintain conversation continuity better"
+                    )
+                    self.logger.info(f"Stored conversation flow correction for thread {thread_id}")
