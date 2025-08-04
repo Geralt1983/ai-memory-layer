@@ -529,6 +529,7 @@
             <div class="chat-title">
                 AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small>
                 <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">↻ Reload</button>
+                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">🆕 New Chat</button>
             </div>
             <div class="header-controls">
                 <button class="control-btn" onclick="searchMemories()">🔍 Search</button>
@@ -605,7 +606,21 @@
         let recognition = null;
         let isGenerating = false;
         let currentGenerationController = null;
-        let conversationThreadId = `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        // Get or create persistent conversation thread ID
+        let conversationThreadId = localStorage.getItem('conversationThreadId');
+        if (!conversationThreadId) {
+            conversationThreadId = `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('conversationThreadId', conversationThreadId);
+        }
+
+        // Start a new conversation with fresh context
+        function startNewConversation() {
+            if (confirm('Start a new conversation? This will clear the current conversation context.')) {
+                localStorage.removeItem('conversationThreadId');
+                localStorage.removeItem('conversations');
+                location.reload();
+            }
+        }
 
         // Initialize
         async function init() {
