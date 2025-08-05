@@ -66,7 +66,7 @@ class FaissVectorStore(VectorStore):
         self.current_id = 0
         self.index_path = index_path
 
-        if index_path and os.path.exists(index_path):
+        if index_path and os.path.exists(f"{index_path}.index"):
             self.load_index(index_path)
 
     def add_memory(self, memory: Memory) -> str:
