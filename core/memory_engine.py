@@ -40,11 +40,18 @@ from .logging_config import get_logger, log_memory_operation, monitor_performanc
 
 @dataclass
 class Memory:
-    content: str
+    content: str  # The 'text' field from ChatGPT format
     embedding: Optional[Union[np.ndarray, list]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
     relevance_score: float = 0.0
+    
+    # New fields for enhanced memory system
+    role: str = "user"  # "user" or "assistant"
+    thread_id: Optional[str] = None
+    title: Optional[str] = None
+    type: str = "history"  # "history", "identity", "correction", "summary"
+    importance: float = 1.0  # 0.0 to 1.0 for retrieval weighting
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -52,15 +59,26 @@ class Memory:
             "metadata": self.metadata,
             "timestamp": self.timestamp.isoformat(),
             "relevance_score": self.relevance_score,
+            "role": self.role,
+            "thread_id": self.thread_id,
+            "title": self.title,
+            "type": self.type,
+            "importance": self.importance,
         }
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "Memory":
+        # Handle both old and new formats for backward compatibility
         return cls(
-            content=data["content"],
+            content=data.get("content", data.get("text", "")),  # Support 'text' field
             metadata=data.get("metadata", {}),
-            timestamp=datetime.fromisoformat(data["timestamp"]),
+            timestamp=datetime.fromisoformat(data["timestamp"]) if isinstance(data.get("timestamp"), str) else data.get("timestamp", datetime.now()),
             relevance_score=data.get("relevance_score", 0.0),
+            role=data.get("role", "user"),
+            thread_id=data.get("thread_id"),
+            title=data.get("title"),
+            type=data.get("type", "history"),
+            importance=data.get("importance", 1.0),
         )
 
 
@@ -110,17 +128,35 @@ class MemoryEngine:
 
     @monitor_performance("add_memory")
     def add_memory(
-        self, content: str, metadata: Optional[Dict[str, Any]] = None
+        self,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        role: str = "user",
+        thread_id: Optional[str] = None,
+        title: Optional[str] = None,
+        type: str = "history",
+        importance: float = 1.0,
     ) -> Memory:
         self.logger.debug(
             "Adding new memory",
             extra={
                 "content_length": len(content),
                 "metadata_keys": list((metadata or {}).keys()),
+                "type": type,
+                "importance": importance,
+                "thread_id": thread_id,
             },
         )
 
-        memory = Memory(content=content, metadata=metadata or {})
+        memory = Memory(
+            content=content,
+            metadata=metadata or {},
+            role=role,
+            thread_id=thread_id,
+            title=title,
+            type=type,
+            importance=importance,
+        )
 
         # Generate embedding if embedding provider is available
         if self.embedding_provider:
@@ -182,13 +218,14 @@ class MemoryEngine:
         return high_priority[:limit]
 
     @monitor_performance("search_memories")
-    def search_memories(self, query: str, k: int = 5) -> List[Memory]:
+    def search_memories(self, query: str, k: int = 5, include_importance: bool = True) -> List[Memory]:
         self.logger.debug(
             "Searching memories",
             extra={
                 "query_length": len(query),
                 "k": k,
                 "total_memories": len(self.memories),
+                "include_importance": include_importance,
             },
         )
 
@@ -202,9 +239,42 @@ class MemoryEngine:
         self.logger.debug("Generating query embedding")
         query_embedding = self.embedding_provider.embed_text(query)
 
-        # Search using the vector store
-        self.logger.debug("Performing vector search")
-        results = self.vector_store.search(query_embedding, k)
+        # Search using the vector store - get more results for re-ranking
+        search_k = k * 2 if include_importance else k
+        self.logger.debug("Performing vector search", extra={"search_k": search_k})
+        results = self.vector_store.search(query_embedding, search_k)
+
+        # Apply importance weighting if enabled
+        if include_importance and results:
+            import math
+            
+            for memory in results:
+                # Calculate age decay (optional, can be disabled)
+                age_days = (datetime.now() - memory.timestamp).days
+                age_decay = math.exp(-age_days / 30)  # 30-day half-life
+                
+                # Boost score based on importance and type
+                importance_boost = 1 + (0.5 * memory.importance)
+                
+                # Extra boost for critical types
+                type_boost = 1.0
+                if memory.type == "correction" or memory.type == "identity":
+                    type_boost = 1.5
+                elif memory.type == "summary":
+                    type_boost = 1.2
+                
+                # Apply weighted scoring
+                memory.relevance_score = memory.relevance_score * importance_boost * type_boost * age_decay
+                
+                self.logger.debug(
+                    f"Memory scoring: base={memory.relevance_score:.3f}, "
+                    f"importance={memory.importance}, type={memory.type}, "
+                    f"age_days={age_days}, final_score={memory.relevance_score:.3f}"
+                )
+            
+            # Re-sort by new scores and take top k
+            results.sort(key=lambda m: m.relevance_score, reverse=True)
+            results = results[:k]
 
         log_memory_operation(
             "search", query_length=len(query), results_count=len(results)

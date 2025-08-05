@@ -400,8 +400,32 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                         "role": "system", 
                         "content": f"Background context: {memory_summary}"
                     })
+                
+                # Inject conversation titles as additional context if available
+                unique_titles = set()
+                for mem in relevant_memories:
+                    if mem.title and mem.type == "history":
+                        unique_titles.add(mem.title)
+                
+                if unique_titles:
+                    titles_context = f"Related past conversations: {', '.join(list(unique_titles)[:3])}"
+                    messages.append({
+                        "role": "system",
+                        "content": titles_context
+                    })
         
-        # 6. Context anchoring for ambiguous follow-ups (CRITICAL for semantic drift prevention)
+        # 6. Thread title context injection for current conversation
+        if thread_id and thread_id in self.conversations:
+            # Check if we have a title for this thread in memories
+            thread_memories = [m for m in self.memory_engine.memories 
+                             if m.thread_id == thread_id and m.title]
+            if thread_memories and thread_memories[0].title:
+                messages.append({
+                    "role": "system",
+                    "content": f"Current conversation topic: '{thread_memories[0].title}'"
+                })
+        
+        # 7. Context anchoring for ambiguous follow-ups (CRITICAL for semantic drift prevention)
         context_anchor = self._create_context_anchor(user_message, thread_id)
         if context_anchor:
             messages.append({
@@ -487,13 +511,29 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                 # Detect and store identity corrections
                 self._detect_and_store_corrections(message, assistant_response, thread_id)
                 
-                # Also store in long-term memory for search
+                # Determine conversation title if not set
+                conversation_title = None
+                if thread_id and len(self.conversations.get(thread_id, [])) <= 2:
+                    # First exchange - try to extract title from the topic
+                    conversation_title = self._extract_conversation_title(message, assistant_response)
+                
+                # Also store in long-term memory for search with enhanced metadata
                 self.memory_engine.add_memory(
-                    f"User: {message}",
+                    content=f"User: {message}",
+                    role="user",
+                    thread_id=thread_id,
+                    title=conversation_title,
+                    type="history",
+                    importance=0.7,
                     metadata={"type": "user_message", "thread_id": thread_id}
                 )
                 self.memory_engine.add_memory(
-                    f"Assistant: {assistant_response}",
+                    content=f"Assistant: {assistant_response}",
+                    role="assistant", 
+                    thread_id=thread_id,
+                    title=conversation_title,
+                    type="history",
+                    importance=0.6,
                     metadata={"type": "assistant_response", "thread_id": thread_id}
                 )
             
@@ -569,3 +609,32 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                         f"Assistant should maintain conversation continuity better"
                     )
                     self.logger.info(f"Stored conversation flow correction for thread {thread_id}")
+    
+    def _extract_conversation_title(self, user_message: str, assistant_response: str) -> str:
+        """Extract a conversation title from the first exchange"""
+        # Simple heuristic-based title extraction
+        # In production, could use GPT to generate better titles
+        
+        user_lower = user_message.lower()
+        
+        # Look for common question patterns
+        if "how to" in user_lower:
+            start = user_lower.find("how to")
+            return user_message[start:start+50].strip() + "..."
+        
+        if "what is" in user_lower or "what's" in user_lower:
+            return user_message[:50].strip() + "..."
+        
+        # Look for technical terms as title candidates
+        tech_terms = ["debug", "error", "implement", "fix", "create", "build", 
+                     "optimize", "configure", "deploy", "setup"]
+        for term in tech_terms:
+            if term in user_lower:
+                # Find sentence containing the term
+                sentences = user_message.split('.')
+                for sent in sentences:
+                    if term in sent.lower():
+                        return sent.strip()[:60] + "..."
+        
+        # Default: use first 50 chars of user message
+        return user_message[:50].strip() + "..." if len(user_message) > 50 else user_message

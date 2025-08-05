@@ -55,8 +55,29 @@ git commit -m "$1 (v$NEW_VERSION)"
 git tag -a "v$NEW_VERSION" -m "Release version $NEW_VERSION"
 git push origin main --tags
 
+# Sync ChatGPT Memory Data
+echo "🧠 Syncing ChatGPT memory database..."
+if [ -f "data/chatgpt_memories.json" ]; then
+    MEMORY_SIZE=$(ls -lh data/chatgpt_memories.json | awk '{print $5}')
+    echo "  📊 Transferring ChatGPT memories ($MEMORY_SIZE)..."
+    rsync -avz --progress -e "ssh -i $EC2_KEY" \
+        data/chatgpt_memories.json \
+        $EC2_HOST:$PROJECT_DIR/data/
+    
+    echo "  📦 Transferring FAISS indexes..."
+    rsync -avz --progress -e "ssh -i $EC2_KEY" \
+        data/faiss_chatgpt_index.index \
+        data/faiss_chatgpt_index.pkl \
+        $EC2_HOST:$PROJECT_DIR/data/
+    
+    # Verify transfer
+    ssh -i $EC2_KEY $EC2_HOST "cd $PROJECT_DIR && python3 -c \"import json; data=json.load(open('data/chatgpt_memories.json')); print('✅ Verified:', len(data), 'memories on EC2')\""
+else
+    echo "  ⚠️  No ChatGPT memory data found locally"
+fi
+
 # Deploy to EC2
-echo "🔄 Deploying to EC2..."
+echo "🔄 Deploying code to EC2..."
 ssh -i $EC2_KEY $EC2_HOST << ENDSSH
 cd ~/ai-memory-layer
 git pull origin main
