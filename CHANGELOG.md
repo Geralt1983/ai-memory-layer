@@ -5,6 +5,24 @@ All notable changes to the AI Memory Layer project will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.4] - 2025-08-04
+
+### Changed
+- 
+
+## [1.11.3] - 2025-08-04
+
+### Added
+- feat: semantic drift prevention with context anchoring for ambiguous follow-ups
+- feat: 34+ ambiguous follow-up pattern detection ("what do you think", "sure", "depends", etc.)
+- feat: conversation hook system to tie vague responses back to specific topics
+- feat: enhanced context anchoring for extra-vague patterns with full thread context
+
+### Fixed
+- fix: prevents generic AI responses when users give ambiguous follow-ups
+- fix: maintains conversation continuity for short replies like "yeah", "sure", "what do you think"
+- fix: context decoding failures where short responses were misinterpreted
+
 ## [1.11.2] - 2025-08-04
 
 ### Changed

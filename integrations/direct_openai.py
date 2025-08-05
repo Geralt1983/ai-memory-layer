@@ -5,6 +5,7 @@ Human-like responses with sophisticated memory integration and context awareness
 from typing import List, Dict, Any, Optional, Tuple
 from openai import OpenAI
 import json
+import re
 from datetime import datetime
 from core.memory_engine import Memory, MemoryEngine
 from core.logging_config import get_logger, monitor_performance
@@ -45,6 +46,43 @@ class DirectOpenAIChat:
             "context": "Building AI memory layer with vector storage and GPT-4o integration",
             "communication_style": "Expects blunt, helpful responses like a capable peer"
         }
+        
+        # Ambiguous follow-up patterns that need context anchoring
+        self.ambiguous_patterns = [
+            r"^what (about|do you think|should I do)",
+            r"^yeah(?!\w)",
+            r"^sure(?!\w)",
+            r"^ok(?!\w)",
+            r"^maybe(?!\w)",
+            r"^probably(?!\w)",
+            r"^that one",
+            r"^not really",
+            r"^I guess",
+            r"^makes sense",
+            r"^kind of",
+            r"^a bit",
+            r"^me too",
+            r"^same here",
+            r"^you actually",
+            r"^I agree",
+            r"^that too",
+            r"^it does",
+            r"^it doesn't",
+            r"^neither",
+            r"^both",
+            r"^either",
+            r"^depends",
+            r"^interesting",
+            r"^cool",
+            r"^true",
+            r"^false",
+            r"^no(?!\w)",
+            r"^yes(?!\w)",
+            r"^I don't know",
+            r"^not sure",
+            r"^you're right",
+            r"^maybe not",
+        ]
         
     def _load_conversation_history(self):
         """Load persisted conversation history from disk"""
@@ -217,6 +255,64 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         # Return original input for greetings and topics
         return user_input
     
+    def _is_ambiguous_followup(self, user_input: str) -> bool:
+        """Detect if user input is an ambiguous follow-up that needs context anchoring"""
+        user_lower = user_input.lower().strip()
+        
+        # Check against ambiguous patterns
+        for pattern in self.ambiguous_patterns:
+            if re.match(pattern, user_lower, re.IGNORECASE):
+                return True
+        
+        return False
+    
+    def _get_last_assistant_message(self, thread_id: str) -> Optional[str]:
+        """Get the most recent assistant message from conversation history"""
+        recent_messages = self._get_conversation_messages(thread_id, limit=10)
+        
+        # Find the last assistant message
+        for msg in reversed(recent_messages):
+            if msg["role"] == "assistant":
+                return msg["content"]
+        
+        return None
+    
+    def _create_context_anchor(self, user_input: str, thread_id: str) -> Optional[str]:
+        """Create a context anchoring system message for ambiguous follow-ups"""
+        if not self._is_ambiguous_followup(user_input):
+            return None
+        
+        last_ai_message = self._get_last_assistant_message(thread_id)
+        if not last_ai_message:
+            return None
+        
+        # For very vague responses, add more context
+        extra_vague_patterns = [r"^what do you think", r"^what about", r"^sure$", r"^yeah$", r"^depends"]
+        is_extra_vague = any(re.match(pattern, user_input.lower().strip(), re.IGNORECASE) for pattern in extra_vague_patterns)
+        
+        if is_extra_vague:
+            # Get the last user-assistant exchange for richer context
+            recent_messages = self._get_conversation_messages(thread_id, limit=6)
+            if len(recent_messages) >= 2:
+                # Find the last user message and assistant response pair
+                last_user_msg = None
+                for msg in reversed(recent_messages):
+                    if msg["role"] == "user":
+                        last_user_msg = msg["content"]
+                        break
+                
+                if last_user_msg:
+                    anchor_msg = f"CONTEXT ANCHOR: User's vague reply '{user_input}' refers to this conversation thread: User said '{last_user_msg[:150]}{'...' if len(last_user_msg) > 150 else ''}' and Assistant replied '{last_ai_message[:150]}{'...' if len(last_ai_message) > 150 else ''}'. Stay focused on this specific topic."
+                else:
+                    anchor_msg = f"CONTEXT ANCHOR: User's reply '{user_input}' is in response to the previous assistant message: '{last_ai_message[:200]}{'...' if len(last_ai_message) > 200 else ''}'"
+            else:
+                anchor_msg = f"CONTEXT ANCHOR: User's reply '{user_input}' is in response to the previous assistant message: '{last_ai_message[:200]}{'...' if len(last_ai_message) > 200 else ''}'"
+        else:
+            # Standard anchoring for less vague responses
+            anchor_msg = f"CONTEXT ANCHOR: User's reply '{user_input}' is in response to the previous assistant message: '{last_ai_message[:200]}{'...' if len(last_ai_message) > 200 else ''}'"
+        
+        return anchor_msg
+    
     def _build_messages_array(
         self,
         thread_id: str,
@@ -259,12 +355,21 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                         "content": f"Background context: {memory_summary}"
                     })
         
-        # 6. Add conversation history (maintain continuity - minimum 3-5 exchanges)
+        # 6. Context anchoring for ambiguous follow-ups (CRITICAL for semantic drift prevention)
+        context_anchor = self._create_context_anchor(user_message, thread_id)
+        if context_anchor:
+            messages.append({
+                "role": "system",
+                "content": context_anchor
+            })
+            self.logger.debug(f"Added context anchor for ambiguous input: {user_message[:50]}...")
+        
+        # 7. Add conversation history (maintain continuity - minimum 3-5 exchanges)
         conversation_history = self._get_conversation_messages(thread_id, limit=20)
         for msg in conversation_history:
             messages.append({"role": msg["role"], "content": msg["content"]})
         
-        # 7. Add current user message with disambiguation
+        # 8. Add current user message with disambiguation
         disambiguated_message = self._disambiguate_user_input(user_message, thread_id)
         messages.append({"role": "user", "content": disambiguated_message})
         
@@ -274,7 +379,9 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                 "system_messages": sum(1 for m in messages if m["role"] == "system"),
                 "history_messages": len(conversation_history),
                 "total_messages": len(messages),
-                "memory_injected": include_memories > 0
+                "memory_injected": include_memories > 0,
+                "context_anchored": context_anchor is not None,
+                "ambiguous_input": self._is_ambiguous_followup(user_message)
             }
         )
         
