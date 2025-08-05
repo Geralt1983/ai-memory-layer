@@ -5,6 +5,24 @@ All notable changes to the AI Memory Layer project will be documented in this fi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.6] - 2025-08-04
+
+### Changed
+- 
+
+## [1.11.5] - 2025-08-04
+
+### Added
+- feat: memory deduplication system prevents redundant preference recalls
+- feat: enhanced identity anchoring with explicit name/style references for thread starts
+- feat: varied memory phrasing to eliminate robotic repetition
+- feat: balanced identity progression from strong framing to natural conversation flow
+
+### Fixed
+- fix: eliminates repeated "Jeremy prefers..." phrasing between responses
+- fix: stronger personal identity framing at conversation beginnings
+- fix: mid-thread identity balance maintains personal tone without over-anchoring
+
 ## [1.11.4] - 2025-08-04
 
 ### Changed

@@ -147,8 +147,35 @@ If retrieved memory is provided, treat it as background insight. Use it to infor
 
 You are currently supporting a user named Jeremy Kimble, an IT consultant who is building a long-memory AI assistant with vector recall using FAISS and OpenAI's GPT-4o API. He values speed, precision, low-fluff responses, and clever utility."""
     
+    def _dedupe_and_paraphrase_memories(self, contents: List[str], memory_type: str) -> List[str]:
+        """Deduplicate and paraphrase memory content to avoid redundancy"""
+        if not contents:
+            return []
+        
+        # Simple semantic deduplication based on key terms
+        unique_contents = []
+        seen_keywords = set()
+        
+        for content in contents:
+            # Extract key terms for similarity checking
+            key_terms = set(word.lower() for word in content.split() 
+                           if len(word) > 3 and word.isalpha())
+            
+            # Check if content is too similar to existing ones
+            overlap = any(len(key_terms & seen) > 2 for seen in seen_keywords)
+            
+            if not overlap:
+                unique_contents.append(content)
+                seen_keywords.add(frozenset(key_terms))
+            
+            # Limit to prevent overwhelming context
+            if len(unique_contents) >= 3:
+                break
+        
+        return unique_contents
+    
     def _create_memory_summary(self, memories: List[Memory]) -> str:
-        """Transform raw FAISS memories into natural context summaries"""
+        """Transform raw FAISS memories into natural context summaries with deduplication"""
         if not memories:
             return None
             
@@ -162,20 +189,39 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         
         summaries = []
         for mem_type, contents in memory_groups.items():
-            if mem_type == 'preference':
-                summaries.append(f"User preferences: {', '.join(contents[:3])}")
-            elif mem_type == 'user_message':
-                summaries.append(f"Recent topics discussed: {', '.join([c[:50] + '...' for c in contents[:2]])}")
-            elif mem_type == 'tool' or mem_type == 'technical':
-                summaries.append(f"Technical context: {', '.join(contents[:2])}")
-            else:
-                summaries.append(f"Context: {contents[0][:100]}..." if contents else "")
+            # Deduplicate and paraphrase based on type
+            unique_contents = self._dedupe_and_paraphrase_memories(contents, mem_type)
+            
+            if mem_type == 'preference' and unique_contents:
+                # Vary phrasing for preferences to avoid repetition
+                pref_phrases = [
+                    f"Jeremy values {', '.join(unique_contents[:2])}",
+                    f"Communication style: {', '.join(unique_contents[:2])}",
+                    f"Prefers {', '.join(unique_contents[:2])}"
+                ]
+                summaries.append(pref_phrases[len(summaries) % len(pref_phrases)])
+            elif mem_type == 'user_message' and unique_contents:
+                summaries.append(f"Previous topics: {', '.join([c[:50] + '...' for c in unique_contents[:2]])}")
+            elif (mem_type == 'tool' or mem_type == 'technical') and unique_contents:
+                summaries.append(f"Technical background: {', '.join(unique_contents[:2])}")
+            elif unique_contents:
+                summaries.append(f"Context: {unique_contents[0][:100]}...")
         
         return " | ".join(summaries) if summaries else None
     
-    def _create_identity_message(self) -> str:
-        """Create identity profile message for GPT-4o personalization"""
-        return f"""User Profile: {self.user_identity['name']}, {self.user_identity['role']}. Communication style: {self.user_identity['communication_style']}. Current project context: {self.user_identity['context']}."""
+    def _create_identity_message(self, thread_id: str = None) -> str:
+        """Create identity profile message with explicit name/style anchoring"""
+        # Check if this is early in the thread for stronger identity anchoring
+        is_thread_start = False
+        if thread_id and thread_id in self.conversations:
+            is_thread_start = len(self.conversations[thread_id]) < 4
+        
+        if is_thread_start or not thread_id:
+            # Stronger identity framing for thread openings
+            return f"""User Identity: You're speaking with {self.user_identity['name']}, who explicitly prefers {self.user_identity['communication_style'].lower()}. Jeremy dislikes robotic responses, values technical precision, and expects you to reference conversation history naturally. Current focus: {self.user_identity['context']}."""
+        else:
+            # Standard profile for mid-thread
+            return f"""User Profile: {self.user_identity['name']}, {self.user_identity['role']}. Communication style: {self.user_identity['communication_style']}. Current project context: {self.user_identity['context']}."""
     
     def _create_behavior_log(self) -> str:
         """Create past behavior expectations for consistency"""
@@ -328,8 +374,8 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
             system_prompt = self.base_system_prompt
         messages.append({"role": "system", "content": system_prompt})
         
-        # 2. Identity profile injection for personalization
-        messages.append({"role": "system", "content": self._create_identity_message()})
+        # 2. Identity profile injection for personalization (enhanced for thread starts)
+        messages.append({"role": "system", "content": self._create_identity_message(thread_id)})
         
         # 3. Behavior expectations for consistency
         messages.append({"role": "system", "content": self._create_behavior_log()})
