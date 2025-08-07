@@ -15,12 +15,32 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv('.env.local')
 
-# Import optimized loader
+# Import optimized loader and GPT response generation
 from optimized_memory_loader import create_optimized_chatgpt_engine
+from optimized_clean_loader import create_cleaned_chatgpt_engine
+from core.gpt_response import generate_gpt_response, generate_conversation_title as gpt_generate_title
+from core.similarity_utils import create_search_optimized_engine
 
+# Try to load cleaned memories first, fall back to original if not available
 print("🚀 Loading ChatGPT Memory System...")
-memory_engine = create_optimized_chatgpt_engine()
-print(f"✅ {len(memory_engine.memories):,} memories loaded!")
+try:
+    from pathlib import Path
+    if Path("data/chatgpt_memories_cleaned.json").exists():
+        print("🧹 Using CLEANED memories for better quality...")
+        memory_engine = create_cleaned_chatgpt_engine()
+    else:
+        print("📂 Using original memories...")
+        memory_engine = create_optimized_chatgpt_engine()
+except Exception as e:
+    print(f"⚠️ Failed to load cleaned memories: {e}")
+    print("📂 Falling back to original memories...")
+    memory_engine = create_optimized_chatgpt_engine()
+
+# Enhance memory engine with relevance scoring
+print("🎯 Adding semantic relevance scoring...")
+memory_engine = create_search_optimized_engine(memory_engine, min_score=0.4)
+    
+print(f"✅ {len(memory_engine.memories):,} memories loaded with enhanced search!")
 
 # Create FastAPI app
 from fastapi import FastAPI
@@ -48,11 +68,11 @@ class SearchRequest(BaseModel):
     query: str
     k: Optional[int] = 5
 
-# Root route - serve the enhanced chat interface
+# Root route - serve the enhanced chat interface with metrics
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    # Read and return the enhanced web interface
-    with open('web_interface_enhanced.html', 'r') as f:
+    # Read and return the enhanced web interface with metrics
+    with open('web_interface_with_metrics.html', 'r') as f:
         html_content = f.read()
     # Update the API base URL to work with ngrok
     html_content = html_content.replace("const API_BASE = 'http://localhost:8000';", "const API_BASE = window.location.origin;")
@@ -91,15 +111,22 @@ async def memory_stats():
         "status": "active"
     }
 
-# Fix: Add missing conversation title generation endpoint
+# Fix: Add missing conversation title generation endpoint with GPT support
 @app.post("/conversations/generate-title") 
 async def generate_title(payload: dict):
     try:
         messages = payload.get("messages", [])
         if not messages:
             return {"title": "New Chat"}
+        
+        # Try GPT-powered title generation first
+        try:
+            title = gpt_generate_title(messages)
+            return {"title": title}
+        except Exception as gpt_error:
+            print(f"GPT title generation failed: {gpt_error}")
             
-        # Extract first user message for title
+        # Fallback: Extract first user message for title
         first_user_msg = None
         for msg in messages:
             if msg.get("sender") == "user":
@@ -142,18 +169,42 @@ async def search_memories(request: SearchRequest):
 async def chat(request: ChatRequest):
     try:
         # Search for relevant memories with higher k for better selection
-        results = memory_engine.search_memories(request.message, k=5)
+        results = memory_engine.search_memories(request.message, k=10)
         
-        # Filter and improve memory quality (relaxed filters for better results)
+        # FIXED: Use relevance scores instead of just length filtering
         quality_memories = []
         for result in results:
-            # More lenient filtering - include shorter but meaningful content
-            if (len(result.content) > 15 and  # Relaxed minimum length
-                not result.content.startswith(("Yeah", "Okay", "Sure", "Hmm", "Uh", "Um")) and  # Skip filler
-                len(result.content.split()) > 2):  # Relaxed minimum word count
+            # Get relevance score (higher is better)
+            relevance_score = getattr(result, 'relevance_score', 0.0)
+            
+            # Use relevance threshold instead of rigid length requirements
+            if relevance_score > 1.0:  # Above average similarity
+                quality_memories.append(result)
+            # Also include longer content with lower scores as fallback
+            elif (len(result.content) > 100 and 
+                  relevance_score > 0.8 and
+                  not result.content.strip().lower().startswith(("yeah", "okay", "sure", "hmm", "uh", "um"))):
                 quality_memories.append(result)
         
-        # Create a helpful response based on the search
+        # Option 1: Use GPT-4 for intelligent responses (if available)
+        use_gpt = request.dict().get("use_gpt", True)  # Default to GPT-4 if available
+        
+        if use_gpt and quality_memories:
+            try:
+                # Generate intelligent response with GPT-4
+                response = generate_gpt_response(request.message, quality_memories)
+                return {
+                    "response": response,
+                    "relevant_memories": len(quality_memories),
+                    "total_memories": len(memory_engine.memories),
+                    "raw_search_results": len(results),
+                    "response_type": "gpt-4"
+                }
+            except Exception as gpt_error:
+                print(f"GPT-4 generation failed, falling back: {gpt_error}")
+                # Fall through to simple response
+        
+        # Option 2: Simple context-based response (fallback or if GPT disabled)
         if len(quality_memories) > 0:
             # Extract meaningful context from best memories
             context_pieces = []
@@ -184,7 +235,8 @@ async def chat(request: ChatRequest):
             "response": response,
             "relevant_memories": len(quality_memories),
             "total_memories": len(memory_engine.memories),
-            "raw_search_results": len(results)
+            "raw_search_results": len(results),
+            "response_type": "context-only"
         }
     except Exception as e:
         return {"error": str(e)}
