@@ -1,19 +1,20 @@
 # AI Memory Layer
 
-A persistent memory system for AI assistants with semantic search, vector storage, and conversation management.
+A modular persistent memory system for AI assistants with semantic search, vector storage, and intelligent conversation synthesis.
 
 ## Version
 
-**v1.8.9** - Context Flow Fix (2025-08-04)
+**v1.3.0** - Clean Architecture Refactor (2025-08-07)
 
 ## Features
 
-- 🧠 **Persistent Memory**: Conversations and context preserved across sessions
-- 🔍 **Semantic Search**: Vector-based memory retrieval using FAISS/ChromaDB
-- 💬 **Chat Interface**: ChatGPT-like web interface with conversation management
-- 🔄 **Memory Management**: Automatic cleanup, archival, and export capabilities
-- 🌐 **REST API**: Full-featured API for integration with other applications
-- ☁️ **Cloud Ready**: Deployed on AWS EC2 for 24/7 availability
+- 🧠 **Persistent Memory**: 21,338 ChatGPT conversations with semantic search
+- 🔍 **Semantic Search**: Relevance-based filtering with similarity thresholds  
+- 🤖 **GPT-4 Synthesis**: Intelligent response generation using conversation history
+- 💬 **Chat Interface**: Real-time metrics with professional web UI
+- 🔄 **Memory Management**: Conversation threading and content quality filtering
+- 🌐 **Modular API**: Clean FastAPI architecture with separated endpoints
+- ☁️ **Stable Access**: Cloudflare Tunnel for persistent public URL
 
 ## Architecture
 
@@ -31,7 +32,7 @@ A persistent memory system for AI assistants with semantic search, vector storag
                         └────────────────┘                                 └─────────────────┘
 ```
 
-## Quick Start (Local Development)
+## Quick Start
 
 ```bash
 # Clone repository
@@ -47,12 +48,21 @@ pip install -r requirements.txt
 cp .env.example .env
 # Add your OPENAI_API_KEY to .env
 
-# Run API server
-python run_api.py
+# Run modular API (v1.3.0)
+python api/main.py
 
-# Open web interface
-open web_interface_enhanced.html
+# Or run legacy API
+python api/run_optimized_api.py
+
+# Set up public URL (optional)
+integrations/cloudflare_tunnel.sh
 ```
+
+## Live Demo
+
+- **Public URL**: https://ethnic-eternal-effects-unwrap.trycloudflare.com
+- **Status**: ✅ LIVE with 21,338 ChatGPT conversations
+- **Features**: GPT-4 synthesis, semantic search, real-time metrics
 
 ## Production Deployment
 
@@ -89,15 +99,34 @@ LOG_LEVEL=INFO
 
 ```
 ai-memory-layer/
-├── api/                    # FastAPI REST endpoints
-├── core/                   # Core memory engine logic
-├── integrations/          # OpenAI and embedding integrations
-├── storage/               # Vector storage implementations
-├── tests/                 # Test suite
-├── web_interface_enhanced.html  # Web UI
-├── run_api.py            # API server entry point
-├── cli_interface.py      # Command-line interface
-└── requirements.txt      # Python dependencies
+├── api/                   # Modular FastAPI endpoints
+│   ├── main.py           # Main API server (v1.3.0)
+│   ├── run_optimized_api.py  # Legacy API server
+│   └── endpoints/        # Separated endpoint modules
+│       ├── chat.py       # Chat and GPT-4 synthesis
+│       ├── memories.py   # Memory search and stats  
+│       └── conversations.py  # Title generation
+├── core/                  # Core memory engine logic
+│   ├── memory_engine.py  # Main memory management
+│   ├── gpt_response.py   # GPT-4 integration
+│   ├── similarity_utils.py  # Relevance scoring
+│   └── memory_chunking.py   # Conversation threading
+├── static/               # Web interface assets
+│   └── web_interface.html  # Professional chat UI
+├── integrations/         # External service integrations
+│   └── cloudflare_tunnel.sh  # Stable public URL
+├── scripts/              # Data processing scripts
+│   ├── thread_conversations.py  # Memory preprocessing
+│   └── rebuild_cleaned_index.py  # Index optimization
+├── prompts/              # Prompt templates
+│   └── prompt_templates.md  # GPT-4 prompts
+├── data/                 # Memory storage (gitignored)
+│   ├── chatgpt_memories_cleaned.json
+│   ├── faiss.index
+│   └── faiss.pkl
+├── tests/                # Test suite
+├── .env.example         # Environment configuration
+└── requirements.txt     # Python dependencies
 ```
 
 ## Development
