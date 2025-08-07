@@ -166,7 +166,7 @@ class OptimizedChatGPTLoader:
             
             # Set the pre-loaded index
             vector_store.index = self.faiss_index
-            vector_store.memories = []  # Initialize empty list for consistency
+            vector_store.memories = {}  # Initialize empty dict for consistency
             
             # Create embedding provider
             embedding_provider = OpenAIEmbeddings(api_key=self.openai_api_key)
@@ -216,12 +216,19 @@ class OptimizedChatGPTLoader:
                     
                     # Add to memory engine's memory list (for get_stats, etc.)
                     self.memory_engine.memories.append(memory)
+                    
+                    # CRITICAL: Add to vector store's memory dictionary with FAISS index
+                    # This ensures that FAISS search results can be mapped back to Memory objects
+                    vector_store.memories[i] = memory
                     memories_converted += 1
                     
                 except Exception as e:
                     if memories_converted < 5:  # Log first few errors
                         print(f"⚠️  Error converting memory {i}: {e}")
                     continue
+            
+            # Update vector store's current_id to reflect loaded memories
+            vector_store.current_id = memories_converted
             
             conversion_time = time.time() - conversion_start
             create_time = time.time() - start_time
