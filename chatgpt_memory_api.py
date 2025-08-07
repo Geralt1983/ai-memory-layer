@@ -78,6 +78,46 @@ async def stats():
         "ready": True
     }
 
+# Fix: Add missing /memories/stats endpoint for frontend
+@app.get("/memories/stats")
+async def memory_stats():
+    from datetime import datetime
+    return {
+        "total_memories": len(memory_engine.memories),
+        "count": len(memory_engine.memories),
+        "faiss_vectors": memory_engine.vector_store.index.ntotal if hasattr(memory_engine.vector_store, 'index') else 0,
+        "timestamp": datetime.utcnow().isoformat(),
+        "system": "chatgpt_memory_system",
+        "status": "active"
+    }
+
+# Fix: Add missing conversation title generation endpoint
+@app.post("/conversations/generate-title") 
+async def generate_title(payload: dict):
+    try:
+        messages = payload.get("messages", [])
+        if not messages:
+            return {"title": "New Chat"}
+            
+        # Extract first user message for title
+        first_user_msg = None
+        for msg in messages:
+            if msg.get("sender") == "user":
+                first_user_msg = msg.get("content", "")
+                break
+                
+        if first_user_msg:
+            # Create a simple title from first message
+            title = first_user_msg[:30].strip()
+            if len(first_user_msg) > 30:
+                title += "..."
+            return {"title": title or "New Chat"}
+        else:
+            return {"title": "New Chat"}
+            
+    except Exception as e:
+        return {"title": "New Chat", "error": str(e)}
+
 @app.post("/memories/search")
 async def search_memories(request: SearchRequest):
     try:
@@ -101,32 +141,79 @@ async def search_memories(request: SearchRequest):
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
-        # Search for relevant memories
-        results = memory_engine.search_memories(request.message, k=3)
+        # Search for relevant memories with higher k for better selection
+        results = memory_engine.search_memories(request.message, k=5)
+        
+        # Filter and improve memory quality (relaxed filters for better results)
+        quality_memories = []
+        for result in results:
+            # More lenient filtering - include shorter but meaningful content
+            if (len(result.content) > 15 and  # Relaxed minimum length
+                not result.content.startswith(("Yeah", "Okay", "Sure", "Hmm", "Uh", "Um")) and  # Skip filler
+                len(result.content.split()) > 2):  # Relaxed minimum word count
+                quality_memories.append(result)
         
         # Create a helpful response based on the search
-        if len(results) > 0:
-            # Extract relevant context from memories
+        if len(quality_memories) > 0:
+            # Extract meaningful context from best memories
             context_pieces = []
-            for result in results[:2]:  # Use top 2 most relevant
-                context_pieces.append(result.content[:200])
+            for result in quality_memories[:2]:  # Use top 2 quality memories
+                # Take more content for better context
+                content = result.content[:400] if len(result.content) > 400 else result.content
+                context_pieces.append(f"Previous conversation: {content}")
             
-            context = " ".join(context_pieces)
+            context = "\n\n".join(context_pieces)
             
-            # Generate a conversational response
-            if "hello" in request.message.lower() or "hi" in request.message.lower():
-                response = f"Hello! I can see from your {len(memory_engine.memories):,} ChatGPT conversations that you've discussed many topics. How can I help you today?"
+            # Generate more helpful conversational responses
+            if any(word in request.message.lower() for word in ["hello", "hi", "hey"]):
+                response = f"Hello! I found relevant context from your {len(memory_engine.memories):,} ChatGPT conversations. Based on your history, you've discussed various topics. How can I help you today?"
+                if quality_memories:
+                    response += f"\n\nRecent relevant context:\n{context[:300]}..."
             elif "?" in request.message:
-                response = f"Based on your ChatGPT history, I found {len(results)} relevant conversations. Let me help you with that question by referencing what we've discussed before."
+                response = f"I found {len(quality_memories)} relevant conversations in your ChatGPT history that might help answer your question.\n\n{context[:500]}..."
             else:
-                response = f"I found {len(results)} related conversations in your ChatGPT history. Here's what might be helpful: {context[:300]}..."
+                if len(context) > 100:
+                    response = f"From your ChatGPT conversation history, here's relevant context:\n\n{context[:600]}..."
+                else:
+                    response = f"I found {len(quality_memories)} related conversations. Here's what might be relevant: {context}"
         else:
-            response = f"I searched through your {len(memory_engine.memories):,} ChatGPT conversations but didn't find directly related content. Feel free to ask me anything - I can help with general questions too!"
+            # Fallback when no quality memories found
+            response = f"I searched through your {len(memory_engine.memories):,} ChatGPT conversations but didn't find high-quality matches for '{request.message}'. The search found {len(results)} potential matches, but they were too fragmentary to be useful. Try rephrasing your query or asking about specific topics you know you've discussed."
         
         return {
             "response": response,
-            "relevant_memories": len(results),
-            "total_memories": len(memory_engine.memories)
+            "relevant_memories": len(quality_memories),
+            "total_memories": len(memory_engine.memories),
+            "raw_search_results": len(results)
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Debug endpoint to see raw search results
+@app.post("/debug/search")
+async def debug_search(request: SearchRequest):
+    try:
+        results = memory_engine.search_memories(request.query, k=request.k or 10)
+        
+        debug_results = []
+        for i, result in enumerate(results):
+            debug_results.append({
+                "index": i,
+                "content_length": len(result.content),
+                "content_preview": result.content[:200],
+                "full_content": result.content,
+                "relevance_score": getattr(result, 'relevance_score', 0.0),
+                "passes_quality_filter": (
+                    len(result.content) > 50 and
+                    not result.content.startswith(("Yeah", "Okay", "Sure", "Hmm")) and
+                    len(result.content.split()) > 8
+                )
+            })
+        
+        return {
+            "query": request.query,
+            "total_results": len(results),
+            "results": debug_results
         }
     except Exception as e:
         return {"error": str(e)}
