@@ -63,6 +63,7 @@ app.add_middleware(
 # Request models
 class ChatRequest(BaseModel):
     message: str
+    use_gpt: Optional[bool] = True
 
 class SearchRequest(BaseModel):
     query: str
@@ -74,8 +75,7 @@ async def root():
     # Read and return the enhanced web interface with metrics
     with open('web_interface_with_metrics.html', 'r') as f:
         html_content = f.read()
-    # Update the API base URL to work with ngrok
-    html_content = html_content.replace("const API_BASE = 'http://localhost:8000';", "const API_BASE = window.location.origin;")
+    # HTML already uses window.location.origin for dynamic API base URL
     return html_content
 
 # All the API endpoints
@@ -88,15 +88,11 @@ async def health():
         "dataset_size": f"{len(memory_engine.memories):,} ChatGPT conversations"
     }
 
-@app.get("/stats")
-async def stats():
-    return {
-        "total_memories": len(memory_engine.memories),
-        "faiss_vectors": memory_engine.vector_store.index.ntotal if hasattr(memory_engine.vector_store, 'index') else 0,
-        "system_info": "optimized_chatgpt_loader",
-        "data_source": "chatgpt_conversations",
-        "ready": True
-    }
+# FIXED: Redirect legacy /stats to /memories/stats to avoid confusion
+@app.get("/stats", include_in_schema=False)
+async def stats_redirect():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/memories/stats", status_code=301)
 
 # Fix: Add missing /memories/stats endpoint for frontend
 @app.get("/memories/stats")
@@ -177,17 +173,23 @@ async def chat(request: ChatRequest):
             # Get relevance score (higher is better)
             relevance_score = getattr(result, 'relevance_score', 0.0)
             
-            # Use relevance threshold instead of rigid length requirements
-            if relevance_score > 1.0:  # Above average similarity
+            # FIXED: Use realistic relevance threshold (scores are typically 0-1 range)
+            if relevance_score >= 0.7:  # Above 70% similarity
                 quality_memories.append(result)
             # Also include longer content with lower scores as fallback
             elif (len(result.content) > 100 and 
-                  relevance_score > 0.8 and
+                  relevance_score >= 0.5 and
                   not result.content.strip().lower().startswith(("yeah", "okay", "sure", "hmm", "uh", "um"))):
                 quality_memories.append(result)
         
+        # FIXED: Ensure we always have some context
+        if not quality_memories and results:
+            # Fallback: take top 2 raw results if no quality memories found
+            quality_memories = results[:2]
+            print(f"⚠️ No quality memories found, using top {len(quality_memories)} raw results as fallback")
+        
         # Option 1: Use GPT-4 for intelligent responses (if available)
-        use_gpt = request.dict().get("use_gpt", True)  # Default to GPT-4 if available
+        use_gpt = request.use_gpt  # Now properly using Pydantic field
         
         if use_gpt and quality_memories:
             try:

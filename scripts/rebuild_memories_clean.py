@@ -15,8 +15,9 @@ import numpy as np
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-# Use the existing Memory class from the codebase
-from datetime import datetime
+# Use the existing Memory class and chunking utilities from the codebase
+from core.memory import Memory
+from core.memory_chunking import merge_conversation_fragments as core_merge_fragments
 
 def load_raw_memories(filepath: str = "data/chatgpt_memories.json") -> List[Dict]:
     """Load raw memory data from JSON file"""
@@ -97,93 +98,46 @@ def group_memories_by_time(memories: List[Dict], gap_minutes: int = 30) -> List[
     return conversations
 
 def merge_conversation_fragments(conversation: List[Dict], min_length: int = 40) -> List[Dict]:
-    """Merge small fragments within a conversation into coherent segments"""
+    """
+    Merge small fragments within a conversation into coherent segments
+    Uses the core memory chunking module for consistent processing
+    """
     if not conversation:
         return []
     
-    merged = []
-    fragment_buffer = []
-    
+    # Convert Dict format to Memory objects for core module
+    memory_objects = []
     for mem in conversation:
         content = mem.get('content', '').strip()
-        
-        if not content:
-            continue
+        if content:
+            # Parse timestamp
+            try:
+                timestamp = datetime.fromisoformat(mem.get('timestamp', '').replace('Z', '+00:00'))
+            except:
+                timestamp = datetime.now()
             
-        # If this is a substantial piece, save buffer and add this
-        if len(content) >= min_length * 2:  # 80+ chars is substantial
-            if fragment_buffer:
-                # Merge buffered fragments
-                merged_content = " ".join([m.get('content', '') for m in fragment_buffer])
-                if len(merged_content) > 15:
-                    merged.append({
-                        'content': merged_content,
-                        'timestamp': fragment_buffer[0].get('timestamp'),
-                        'metadata': {
-                            **fragment_buffer[0].get('metadata', {}),
-                            'merged': True,
-                            'fragment_count': len(fragment_buffer)
-                        }
-                    })
-                fragment_buffer = []
-            
-            # Add substantial memory as-is
-            merged.append(mem)
-            
-        # If it's a fragment, buffer it
-        elif len(content) < min_length:
-            fragment_buffer.append(mem)
-            
-        # Medium-sized, check if it's a question
-        elif content.rstrip().endswith('?'):
-            # Questions often pair with answers, keep separate
-            if fragment_buffer:
-                merged_content = " ".join([m.get('content', '') for m in fragment_buffer])
-                if len(merged_content) > 15:
-                    merged.append({
-                        'content': merged_content,
-                        'timestamp': fragment_buffer[0].get('timestamp'),
-                        'metadata': {
-                            **fragment_buffer[0].get('metadata', {}),
-                            'merged': True,
-                            'fragment_count': len(fragment_buffer)
-                        }
-                    })
-                fragment_buffer = []
-            merged.append(mem)
-        else:
-            # Medium-sized non-question, add to buffer or save
-            if fragment_buffer and len(" ".join([m.get('content', '') for m in fragment_buffer])) < 100:
-                fragment_buffer.append(mem)
-            else:
-                if fragment_buffer:
-                    merged_content = " ".join([m.get('content', '') for m in fragment_buffer])
-                    if len(merged_content) > 15:
-                        merged.append({
-                            'content': merged_content,
-                            'timestamp': fragment_buffer[0].get('timestamp'),
-                            'metadata': {
-                                **fragment_buffer[0].get('metadata', {}),
-                                'merged': True,
-                                'fragment_count': len(fragment_buffer)
-                            }
-                        })
-                    fragment_buffer = []
-                merged.append(mem)
+            memory_obj = Memory(
+                content=content,
+                timestamp=timestamp,
+                metadata=mem.get('metadata', {})
+            )
+            memory_objects.append(memory_obj)
     
-    # Don't forget the last buffer
-    if fragment_buffer:
-        merged_content = " ".join([m.get('content', '') for m in fragment_buffer])
-        if len(merged_content) > 15:
-            merged.append({
-                'content': merged_content,
-                'timestamp': fragment_buffer[0].get('timestamp'),
-                'metadata': {
-                    **fragment_buffer[0].get('metadata', {}),
-                    'merged': True,
-                    'fragment_count': len(fragment_buffer)
-                }
-            })
+    # Use core chunking logic
+    merged_memory_objects = core_merge_fragments(
+        memory_objects, 
+        time_window_minutes=30,
+        min_fragment_length=min_length
+    )
+    
+    # Convert back to Dict format
+    merged = []
+    for mem in merged_memory_objects:
+        merged.append({
+            'content': mem.content,
+            'timestamp': mem.timestamp.isoformat(),
+            'metadata': mem.metadata
+        })
     
     return merged
 
