@@ -141,6 +141,12 @@ except Exception as e:
     exit(1)
 "
 
+# Activate virtual environment if available
+if [[ -d "venv" ]]; then
+    echo -e "${BLUE}🔄 Activating virtual environment...${NC}"
+    source venv/bin/activate
+fi
+
 # Start the API server
 echo -e "${GREEN}🚀 Starting AI Memory Layer API...${NC}"
 python3 chatgpt_memory_api.py > "api_server_${NEW_VERSION}.log" 2>&1 &
