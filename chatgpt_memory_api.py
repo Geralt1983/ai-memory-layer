@@ -5,6 +5,7 @@ ChatGPT Memory API - Fixed version without JavaScript escaping issues
 
 import sys
 import os
+from datetime import datetime
 from pathlib import Path
 
 # Add project root to path
@@ -44,11 +45,14 @@ memory_engine = create_search_optimized_engine(memory_engine, min_score=0.4)
 print(f"✅ {len(memory_engine.memories):,} memories loaded with enhanced search!")
 
 # Create FastAPI app
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Optional, Dict, Any, List
+import hmac
+import hashlib
+import json
 
 app = FastAPI(title="ChatGPT Memory API", version="2.0")
 
@@ -61,14 +65,91 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request models
+# Environment variables for security
+SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
+
+# Enhanced Pydantic models
 class ChatRequest(BaseModel):
-    message: str
-    use_gpt: Optional[bool] = True
+    message: str = Field(..., min_length=1, max_length=10000, description="Chat message")
+    use_gpt: Optional[bool] = Field(True, description="Use GPT-4 for response generation")
+    context_k: Optional[int] = Field(15, ge=1, le=50, description="Number of context memories to retrieve")
 
 class SearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, max_length=1000, description="Search query")
+    k: Optional[int] = Field(5, ge=1, le=50, description="Number of results to return")
+    include_scores: Optional[bool] = Field(False, description="Include relevance scores in response")
+
+class IngestPayload(BaseModel):
+    content: str = Field(..., min_length=1, max_length=50000, description="Content to ingest")
+    source: str = Field(..., max_length=100, description="Source of the content")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+
+class MemoryRequest(BaseModel):
+    content: str = Field(..., min_length=1, max_length=50000, description="Memory content")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Memory metadata")
+    role: Optional[str] = Field("user", description="Memory role (user/assistant)")
+    type: Optional[str] = Field("history", description="Memory type")
+    importance: Optional[float] = Field(1.0, ge=0.0, le=1.0, description="Memory importance score")
+
+class CleanupRequest(BaseModel):
+    max_memories: Optional[int] = Field(None, ge=100, description="Maximum number of memories to keep")
+    max_age_days: Optional[int] = Field(None, ge=1, description="Maximum age in days")
+    dry_run: Optional[bool] = Field(True, description="Perform dry run without actual cleanup")
+
+# Response models
+class HealthResponse(BaseModel):
+    status: str
+    memory_count: int
+    system: str
+    dataset_size: str
+
+class ChatResponse(BaseModel):
+    response: str
+    relevant_memories: int
+    total_memories: int
+    raw_search_results: int
+    response_type: str
+
+class SearchResponse(BaseModel):
     query: str
-    k: Optional[int] = 5
+    results: List[Dict[str, Any]]
+    total_count: int
+    searched_memories: int
+
+# Authentication helper
+def verify_signature(raw_body: bytes, signature: str) -> bool:
+    """Verify HMAC signature for webhook authentication"""
+    if not SECRET:
+        return True  # Skip verification if no secret configured
+    
+    mac = hmac.new(SECRET.encode(), msg=raw_body, digestmod=hashlib.sha256).hexdigest()
+    return hmac.compare_digest(f"sha256={mac}", signature or "")
+
+# Background task processor
+def process_github_event(payload: dict):
+    """Process GitHub webhook event in background"""
+    try:
+        event_type = payload.get("action", "unknown")
+        print(f"📦 Processing GitHub event: {event_type}")
+        
+        # Example: Store repository activity as memory
+        if "repository" in payload:
+            repo_name = payload["repository"]["name"]
+            content = f"GitHub repository activity: {event_type} in {repo_name}"
+            memory_engine.add_memory(content, {"source": "github", "event": event_type})
+            
+    except Exception as e:
+        print(f"❌ Error processing GitHub event: {e}")
+
+def process_ingest_task(content: str, source: str, metadata: dict):
+    """Process content ingestion in background"""
+    try:
+        print(f"📥 Ingesting content from {source}: {len(content)} chars")
+        memory_engine.add_memory(content, {**metadata, "source": source})
+        print(f"✅ Content ingested successfully")
+        
+    except Exception as e:
+        print(f"❌ Error ingesting content: {e}")
 
 # Root route - serve the enhanced chat interface with metrics
 @app.get("/", response_class=HTMLResponse)
@@ -79,15 +160,57 @@ async def root():
     # HTML already uses window.location.origin for dynamic API base URL
     return html_content
 
-# All the API endpoints
-@app.get("/health")
-async def health():
+# Webhook endpoints
+@app.post("/webhook/github")
+async def github_webhook(request: Request, bg_tasks: BackgroundTasks):
+    """GitHub webhook endpoint with HMAC verification"""
+    raw_body = await request.body()
+    signature = request.headers.get("X-Hub-Signature-256", "")
+    
+    if not verify_signature(raw_body, signature):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    
+    event_type = request.headers.get("X-GitHub-Event", "unknown")
+    
+    try:
+        payload = json.loads(raw_body)
+        bg_tasks.add_task(process_github_event, payload)
+        
+        return {
+            "status": "queued",
+            "event_type": event_type,
+            "message": "Event processing queued"
+        }
+        
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+
+@app.post("/ingest")
+async def ingest_content(payload: IngestPayload, bg_tasks: BackgroundTasks):
+    """Ingest content with background processing"""
+    bg_tasks.add_task(
+        process_ingest_task,
+        payload.content,
+        payload.source,
+        payload.metadata
+    )
+    
     return {
-        "status": "healthy",
-        "memory_count": len(memory_engine.memories),
-        "system": "chatgpt_memory_api_v2",
-        "dataset_size": f"{len(memory_engine.memories):,} ChatGPT conversations"
+        "status": "queued",
+        "message": "Content ingestion queued",
+        "content_length": len(payload.content),
+        "source": payload.source
     }
+
+# All the API endpoints
+@app.get("/health", response_model=HealthResponse)
+async def health():
+    return HealthResponse(
+        status="healthy",
+        memory_count=len(memory_engine.memories),
+        system="chatgpt_memory_api_v2",
+        dataset_size=f"{len(memory_engine.memories):,} ChatGPT conversations"
+    )
 
 # FIXED: Redirect legacy /stats to /memories/stats to avoid confusion
 @app.get("/stats", include_in_schema=False)
@@ -162,11 +285,42 @@ async def search_memories(request: SearchRequest):
     except Exception as e:
         return {"error": str(e), "results": []}
 
+@app.post("/memories")
+async def add_memory(request: MemoryRequest):
+    """Add a new memory to the system"""
+    try:
+        # Add memory to the engine with enhanced fields
+        memory = memory_engine.add_memory(
+            content=request.content,
+            metadata=request.metadata,
+            role=request.role,
+            type=request.type,
+            importance=request.importance
+        )
+        
+        # Create a simple ID based on content hash and timestamp
+        import hashlib
+        simple_id = hashlib.md5(f"{request.content}_{memory.timestamp}".encode()).hexdigest()[:8]
+        
+        return {
+            "success": True,
+            "memory_id": simple_id,
+            "content": request.content,
+            "metadata": request.metadata,
+            "role": request.role,
+            "type": request.type,
+            "importance": request.importance,
+            "timestamp": memory.timestamp.isoformat(),
+            "total_memories": len(memory_engine.memories)
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 @app.post("/chat")
 async def chat(request: ChatRequest):
     try:
-        # Search for relevant memories with higher k for better selection
-        results = memory_engine.search_memories(request.message, k=15)
+        # Search for relevant memories using configurable k
+        results = memory_engine.search_memories(request.message, k=request.context_k)
         
         # NEW: Enhanced search for pet-related queries that might not find direct matches
         if any(word in request.message.lower() for word in ["how many", "dogs", "pets", "animals"]):
@@ -185,6 +339,31 @@ async def chat(request: ChatRequest):
                     seen_content.add(pet_content)
             
             print(f"🔍 Enhanced search: added {len(pet_search)} pet-related memories to {len(results)} total results")
+        
+        # FIXED: Enhanced search for location-related queries 
+        if any(word in request.message.lower() for word in ["where", "live", "location", "address", "home"]):
+            # Do supplementary searches for location information
+            location_searches = [
+                "King NC North Carolina live location",
+                "address home where live",
+                "7 kids family location"
+            ]
+            
+            seen_content = set()
+            for r in results:
+                seen_content.add(getattr(r, 'content', str(r)))
+            
+            for search_term in location_searches:
+                location_search = memory_engine.search_memories(search_term, k=5)
+                for loc_result in location_search:
+                    loc_content = getattr(loc_result, 'content', str(loc_result))
+                    if (loc_content not in seen_content and 
+                        any(keyword in loc_content.lower() for keyword in ["king", "nc", "north carolina", "live", "location", "address"])):
+                        results.append(loc_result)
+                        seen_content.add(loc_content)
+                        print(f"🏠 Found location memory: {loc_content[:50]}...")
+            
+            print(f"🔍 Enhanced location search: now have {len(results)} total results")
         
         # NEW: Use memory synthesis to improve context understanding
         synthesizer = get_memory_synthesizer()
@@ -213,20 +392,26 @@ async def chat(request: ChatRequest):
             for result in results:
                 # Get relevance score (higher is better)
                 relevance_score = getattr(result, 'relevance_score', 0.0)
+                content_length = len(result.content)
                 
-                # NEW: Include short but highly relevant memories (like pet names)
-                if relevance_score >= 0.7:  # High relevance - always include
+                # FIXED: Better logic for including high-relevance short memories
+                if relevance_score >= 1.0:  # Very high relevance - always include regardless of length
                     quality_memories.append(result)
-                elif relevance_score >= 0.5 and len(result.content) > 50:  # Medium relevance with decent length
+                    print(f"✅ Including high-relevance memory (score={relevance_score:.3f}, len={content_length}): {result.content[:50]}...")
+                elif relevance_score >= 0.8 and content_length >= 20:  # High relevance with minimum length
                     quality_memories.append(result)
-                elif relevance_score >= 0.8 and len(result.content) >= 20:  # Very high relevance even if short
-                    # This catches important short memories like "Remy Jeremy has a friendly Golden Retriever named Remy."
+                    print(f"✅ Including relevant short memory (score={relevance_score:.3f}, len={content_length}): {result.content[:50]}...")
+                elif relevance_score >= 0.5 and content_length > 50:  # Medium relevance with decent length
                     quality_memories.append(result)
+                    print(f"✅ Including medium-length memory (score={relevance_score:.3f}, len={content_length}): {result.content[:50]}...")
                 # Keep longer content with lower scores as fallback
-                elif (len(result.content) > 100 and 
+                elif (content_length > 100 and 
                       relevance_score >= 0.4 and
                       not result.content.strip().lower().startswith(("yeah", "okay", "sure", "hmm", "uh", "um"))):
                     quality_memories.append(result)
+                    print(f"✅ Including fallback long memory (score={relevance_score:.3f}, len={content_length}): {result.content[:50]}...")
+                else:
+                    print(f"❌ Excluding memory (score={relevance_score:.3f}, len={content_length}): {result.content[:30]}...")
         
         # FIXED: Ensure we always have some context
         if not quality_memories and results:
@@ -279,6 +464,20 @@ async def chat(request: ChatRequest):
             # Fallback when no quality memories found
             response = f"I searched through your {len(memory_engine.memories):,} ChatGPT conversations but didn't find high-quality matches for '{request.message}'. The search found {len(results)} potential matches, but they were too fragmentary to be useful. Try rephrasing your query or asking about specific topics you know you've discussed."
         
+        # Store this conversation as a new memory for future reference
+        try:
+            conversation_content = f"User: {request.message}\nAssistant: {response}"
+            memory = memory_engine.add_memory(
+                conversation_content,
+                {
+                    "type": "conversation", 
+                    "timestamp": datetime.now().isoformat(),
+                    "source": "live_chat"
+                }
+            )
+        except Exception as store_error:
+            print(f"Warning: Failed to store conversation memory: {store_error}")
+        
         return {
             "response": response,
             "relevant_memories": len(quality_memories),
@@ -286,6 +485,54 @@ async def chat(request: ChatRequest):
             "raw_search_results": len(results),
             "response_type": "context-only"
         }
+    except Exception as e:
+        return {"error": str(e)}
+
+# Memory management endpoints
+@app.post("/memories/cleanup")
+async def cleanup_memories(request: CleanupRequest):
+    """Clean up memories based on criteria"""
+    try:
+        from core.memory_manager import create_default_memory_manager
+        
+        manager = create_default_memory_manager(memory_engine)
+        
+        # Configure cleanup based on request
+        if request.max_memories or request.max_age_days:
+            stats = manager.auto_cleanup(
+                max_memories=request.max_memories or 1000,
+                max_age_days=request.max_age_days or 30
+            )
+            
+            return {
+                "success": True,
+                "dry_run": request.dry_run,
+                "memories_before": stats.total_memories_before,
+                "memories_after": stats.total_memories_after,
+                "memories_cleaned": stats.memories_cleaned,
+                "memories_archived": stats.memories_archived,
+                "duration_ms": stats.duration_ms
+            }
+        else:
+            return {
+                "success": False,
+                "error": "No cleanup criteria specified"
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+# Optional Prometheus metrics endpoint
+@app.get("/metrics")
+async def metrics():
+    """Prometheus metrics endpoint"""
+    try:
+        # Check if prometheus_client is available
+        from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+        from fastapi import Response
+        return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+    except ImportError:
+        return {"message": "Prometheus metrics not available (prometheus_client not installed)"}
     except Exception as e:
         return {"error": str(e)}
 

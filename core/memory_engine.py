@@ -36,6 +36,7 @@ import json
 import os
 from pathlib import Path
 from .logging_config import get_logger, log_memory_operation, monitor_performance
+from .embedding_cache import get_embedding_cache
 
 
 @dataclass
@@ -108,6 +109,10 @@ class MemoryEngine:
         self.persist_path = persist_path
         self.memories: List[Memory] = []
         self.logger = get_logger("memory_engine")
+        
+        # Initialize embedding cache
+        cache_path = os.getenv("EMBED_CACHE", ".cache/embeddings.json")
+        self.embed_cache = get_embedding_cache(persist_path=cache_path)
 
         self.logger.info(
             "Initializing MemoryEngine",
@@ -119,12 +124,25 @@ class MemoryEngine:
                     type(embedding_provider).__name__ if embedding_provider else None
                 ),
                 "persist_path": persist_path,
+                "cache_path": cache_path,
             },
         )
 
         # Load existing memories if persist path is provided
         if self.persist_path:
             self.load_memories()
+
+    def _embed(self, text: str):
+        """Get embedding using cache-first approach"""
+        if not self.embedding_provider:
+            return None
+        return self.embed_cache.get_or_embed(text, self._embed_raw)
+
+    def _embed_raw(self, text: str):
+        """Raw embedding function that bypasses cache"""
+        if not self.embedding_provider:
+            return None
+        return self.embedding_provider.embed_text(text)
 
     @monitor_performance("add_memory")
     def add_memory(
@@ -160,8 +178,8 @@ class MemoryEngine:
 
         # Generate embedding if embedding provider is available
         if self.embedding_provider:
-            self.logger.debug("Generating embedding for memory")
-            memory.embedding = self.embedding_provider.embed_text(content)
+            self.logger.debug("Getting embedding for memory (cached if available)")
+            memory.embedding = self._embed(content)
 
         self.memories.append(memory)
 
@@ -236,8 +254,8 @@ class MemoryEngine:
             return self.get_recent_memories(k)
 
         # Generate embedding for the query
-        self.logger.debug("Generating query embedding")
-        query_embedding = self.embedding_provider.embed_text(query)
+        self.logger.debug("Getting query embedding (cached if available)")
+        query_embedding = self._embed(query)
 
         # Search using the vector store - get more results for re-ranking
         search_k = k * 2 if include_importance else k
@@ -367,11 +385,9 @@ class MemoryEngine:
                 for memory in self.memories:
                     if memory.embedding is None:
                         self.logger.debug(
-                            "Generating missing embedding for loaded memory"
+                            "Getting missing embedding for loaded memory (cached if available)"
                         )
-                        memory.embedding = self.embedding_provider.embed_text(
-                            memory.content
-                        )
+                        memory.embedding = self._embed(memory.content)
                     self.vector_store.add_memory(memory)
 
             log_memory_operation("load", memory_count=len(self.memories))

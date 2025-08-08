@@ -152,6 +152,26 @@ class EmbeddingCache:
                 hit_count=0,
                 last_accessed=None
             )
+
+    def get_or_embed(self, text: str, embed_fn):
+        """
+        Get cached embedding or compute if not cached
+        
+        Args:
+            text: Text to get embedding for
+            embed_fn: Function to call if embedding not cached
+            
+        Returns:
+            Embedding vector (from cache or newly computed)
+        """
+        cached_embedding = self.get(text)
+        if cached_embedding is not None:
+            return cached_embedding
+        
+        # Compute embedding using provided function
+        new_embedding = embed_fn(text)
+        self.put(text, new_embedding)
+        return new_embedding
     
     def clear(self) -> None:
         """Clear all cached embeddings"""

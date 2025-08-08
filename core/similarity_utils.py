@@ -8,6 +8,64 @@ import numpy as np
 from typing import List, Dict, Any, Tuple
 import re
 
+
+def mmr(query_vec, doc_vecs: List, k: int = 8, lambda_mult: float = 0.5) -> List[int]:
+    """
+    Maximal Marginal Relevance (MMR) algorithm for diverse document selection
+    
+    Balances relevance to query with diversity among selected documents to avoid
+    near-duplicates in results.
+    
+    Args:
+        query_vec: Query vector  
+        doc_vecs: List of document vectors
+        k: Number of documents to select
+        lambda_mult: Balance between relevance (1.0) and diversity (0.0)
+        
+    Returns:
+        List of selected document indices
+    """
+    if not doc_vecs or k <= 0:
+        return []
+    
+    selected = []
+    candidates = list(range(len(doc_vecs)))
+    
+    # Calculate similarity to query for all documents
+    query_vec = np.array(query_vec)
+    doc_vecs_array = np.array(doc_vecs)
+    sim_to_query = np.dot(doc_vecs_array, query_vec)
+    
+    # Select documents using MMR
+    while candidates and len(selected) < k:
+        if not selected:
+            # First selection: highest similarity to query
+            idx = int(np.argmax([sim_to_query[i] for i in candidates]))
+            selected.append(candidates.pop(idx))
+            continue
+        
+        # Subsequent selections: balance relevance and diversity
+        mmr_scores = []
+        
+        for cand_idx in candidates:
+            # Relevance: similarity to query
+            relevance = sim_to_query[cand_idx]
+            
+            # Diversity: max similarity to already selected documents
+            selected_vecs = np.array([doc_vecs[i] for i in selected])
+            cand_vec = np.array(doc_vecs[cand_idx])
+            diversity = np.max(np.dot(selected_vecs, cand_vec))
+            
+            # MMR score: weighted combination
+            mmr_score = lambda_mult * relevance - (1 - lambda_mult) * diversity
+            mmr_scores.append(mmr_score)
+        
+        # Select candidate with highest MMR score
+        best_idx = int(np.argmax(mmr_scores))
+        selected.append(candidates.pop(best_idx))
+    
+    return selected
+
 class RelevanceScorer:
     """Enhanced relevance scoring for memory search results"""
     

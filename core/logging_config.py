@@ -11,6 +11,192 @@ from datetime import datetime, timezone
 from typing import Any, Optional, Callable
 from pathlib import Path
 
+# Try to import prometheus_client for metrics
+try:
+    from prometheus_client import Counter, Histogram, Gauge, Info
+    PROMETHEUS_AVAILABLE = True
+except ImportError:
+    PROMETHEUS_AVAILABLE = False
+    # Mock metrics for compatibility
+    class MockMetric:
+        def inc(self, *args, **kwargs): pass
+        def observe(self, *args, **kwargs): pass
+        def set(self, *args, **kwargs): pass
+        def info(self, *args, **kwargs): pass
+        def labels(self, *args, **kwargs): return self
+    
+    Counter = Histogram = Gauge = Info = lambda *args, **kwargs: MockMetric()
+
+
+# Prometheus metrics definitions
+METRICS = {}
+
+def init_prometheus_metrics():
+    """Initialize Prometheus metrics"""
+    global METRICS
+    
+    METRICS = {
+        # Memory operations
+        'memory_operations_total': Counter(
+            'ai_memory_layer_memory_operations_total',
+            'Total number of memory operations',
+            ['operation', 'status']
+        ),
+        'memory_operation_duration_seconds': Histogram(
+            'ai_memory_layer_memory_operation_duration_seconds',
+            'Duration of memory operations',
+            ['operation']
+        ),
+        'memories_total': Gauge(
+            'ai_memory_layer_memories_total',
+            'Total number of memories stored'
+        ),
+        
+        # Embedding operations  
+        'embedding_operations_total': Counter(
+            'ai_memory_layer_embedding_operations_total',
+            'Total number of embedding operations',
+            ['provider', 'model', 'status']
+        ),
+        'embedding_operation_duration_seconds': Histogram(
+            'ai_memory_layer_embedding_operation_duration_seconds',
+            'Duration of embedding operations',
+            ['provider', 'model']
+        ),
+        'embedding_tokens_processed': Counter(
+            'ai_memory_layer_embedding_tokens_processed_total',
+            'Total number of tokens processed for embeddings',
+            ['provider', 'model']
+        ),
+        
+        # API operations
+        'api_requests_total': Counter(
+            'ai_memory_layer_api_requests_total',
+            'Total number of API requests',
+            ['method', 'endpoint', 'status_code']
+        ),
+        'api_request_duration_seconds': Histogram(
+            'ai_memory_layer_api_request_duration_seconds',
+            'Duration of API requests',
+            ['method', 'endpoint']
+        ),
+        
+        # Vector store operations
+        'vector_store_operations_total': Counter(
+            'ai_memory_layer_vector_store_operations_total',
+            'Total number of vector store operations',
+            ['operation', 'store_type', 'status']
+        ),
+        'vector_store_size': Gauge(
+            'ai_memory_layer_vector_store_size',
+            'Number of vectors in the store',
+            ['store_type']
+        ),
+        
+        # Cache operations
+        'cache_operations_total': Counter(
+            'ai_memory_layer_cache_operations_total',
+            'Total number of cache operations',
+            ['operation', 'cache_type', 'result']
+        ),
+        'cache_hit_ratio': Gauge(
+            'ai_memory_layer_cache_hit_ratio',
+            'Cache hit ratio',
+            ['cache_type']
+        ),
+        
+        # System info
+        'system_info': Info(
+            'ai_memory_layer_system_info',
+            'System information'
+        ),
+        'build_info': Info(
+            'ai_memory_layer_build_info', 
+            'Build information'
+        )
+    }
+
+# Initialize metrics on module load
+init_prometheus_metrics()
+
+
+class PrometheusJSONFormatter(logging.Formatter):
+    """JSON formatter that also updates Prometheus metrics"""
+
+    def format(self, record: logging.LogRecord) -> str:
+        # Update Prometheus metrics based on log record
+        self._update_metrics_from_log(record)
+        
+        # Use standard JSON formatting
+        return JSONFormatter().format(record)
+    
+    def _update_metrics_from_log(self, record: logging.LogRecord):
+        """Update Prometheus metrics based on log records"""
+        if not PROMETHEUS_AVAILABLE:
+            return
+        
+        try:
+            # Extract operation info from extra fields
+            operation = getattr(record, 'operation', None)
+            
+            # Memory operations
+            if hasattr(record, 'memory_id') or 'memory' in record.name.lower():
+                status = 'success' if record.levelno < logging.WARNING else 'error'
+                METRICS['memory_operations_total'].labels(
+                    operation=operation or 'unknown',
+                    status=status
+                ).inc()
+                
+                if hasattr(record, 'duration_ms'):
+                    METRICS['memory_operation_duration_seconds'].labels(
+                        operation=operation or 'unknown'
+                    ).observe(record.duration_ms / 1000.0)
+            
+            # API requests
+            if hasattr(record, 'method') and hasattr(record, 'path'):
+                status_code = str(getattr(record, 'status_code', 'unknown'))
+                METRICS['api_requests_total'].labels(
+                    method=record.method,
+                    endpoint=record.path,
+                    status_code=status_code
+                ).inc()
+                
+                if hasattr(record, 'response_time_ms'):
+                    METRICS['api_request_duration_seconds'].labels(
+                        method=record.method,
+                        endpoint=record.path
+                    ).observe(record.response_time_ms / 1000.0)
+            
+            # Embedding operations
+            if 'embed' in record.name.lower() or hasattr(record, 'model'):
+                provider = getattr(record, 'provider', 'unknown')
+                model = getattr(record, 'model', 'unknown')
+                status = 'success' if record.levelno < logging.WARNING else 'error'
+                
+                METRICS['embedding_operations_total'].labels(
+                    provider=provider,
+                    model=model,
+                    status=status
+                ).inc()
+                
+                if hasattr(record, 'duration_ms'):
+                    METRICS['embedding_operation_duration_seconds'].labels(
+                        provider=provider,
+                        model=model
+                    ).observe(record.duration_ms / 1000.0)
+                
+                if hasattr(record, 'text_length'):
+                    # Rough token estimation (1 token ≈ 4 chars)
+                    estimated_tokens = record.text_length // 4
+                    METRICS['embedding_tokens_processed'].labels(
+                        provider=provider,
+                        model=model
+                    ).inc(estimated_tokens)
+        
+        except Exception:
+            # Don't let metric updates break logging
+            pass
+
 
 class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for structured logging"""
@@ -97,6 +283,9 @@ class MemoryLayerLogger:
         # Configure formatters
         formatters = {
             "json": {
+                "()": PrometheusJSONFormatter if PROMETHEUS_AVAILABLE else JSONFormatter,
+            },
+            "json_simple": {
                 "()": JSONFormatter,
             },
             "text": {
@@ -332,3 +521,38 @@ def monitor_performance(operation: str):
         return wrapper
 
     return decorator
+
+
+# Prometheus metric helper functions
+def update_memory_count(count: int):
+    """Update the total memory count metric"""
+    if PROMETHEUS_AVAILABLE:
+        METRICS['memories_total'].set(count)
+
+
+def update_vector_store_size(store_type: str, size: int):
+    """Update vector store size metric"""
+    if PROMETHEUS_AVAILABLE:
+        METRICS['vector_store_size'].labels(store_type=store_type).set(size)
+
+
+def record_cache_operation(operation: str, cache_type: str, hit: bool):
+    """Record cache operation and update metrics"""
+    if PROMETHEUS_AVAILABLE:
+        result = 'hit' if hit else 'miss'
+        METRICS['cache_operations_total'].labels(
+            operation=operation,
+            cache_type=cache_type,
+            result=result
+        ).inc()
+
+
+def update_cache_hit_ratio(cache_type: str, hit_ratio: float):
+    """Update cache hit ratio metric"""
+    if PROMETHEUS_AVAILABLE:
+        METRICS['cache_hit_ratio'].labels(cache_type=cache_type).set(hit_ratio)
+
+
+def get_prometheus_metrics():
+    """Get all Prometheus metrics for export"""
+    return METRICS if PROMETHEUS_AVAILABLE else {}

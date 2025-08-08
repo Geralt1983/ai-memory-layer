@@ -6,6 +6,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from openai import OpenAI
 import json
 import re
+import asyncio
+import random
 from datetime import datetime
 from core.memory_engine import Memory, MemoryEngine
 from core.logging_config import get_logger, monitor_performance
@@ -638,3 +640,180 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         
         # Default: use first 50 chars of user message
         return user_message[:50].strip() + "..." if len(user_message) > 50 else user_message
+
+
+# Async batch embedding functions with exponential backoff
+async def embed_batch_async(
+    texts: List[str], 
+    client: OpenAI, 
+    model: str = "text-embedding-3-large",
+    max_retries: int = 6
+) -> List[List[float]]:
+    """
+    Async batch embedding with exponential backoff and retry logic
+    
+    Args:
+        texts: List of texts to embed
+        client: OpenAI client
+        model: Embedding model to use
+        max_retries: Maximum number of retry attempts
+        
+    Returns:
+        List of embedding vectors
+        
+    Raises:
+        Exception: If all retries are exhausted
+    """
+    for attempt in range(max_retries):
+        try:
+            response = await client.embeddings.create(
+                input=texts,
+                model=model
+            )
+            
+            return [data.embedding for data in response.data]
+            
+        except Exception as e:
+            if "rate_limit" in str(e).lower() and attempt < max_retries - 1:
+                # Exponential backoff with jitter
+                delay = (2 ** attempt) + random.uniform(0, 1)
+                print(f"Rate limit hit, retrying in {delay:.2f}s (attempt {attempt + 1}/{max_retries})")
+                await asyncio.sleep(delay)
+                continue
+            else:
+                # Re-raise if not rate limit or max retries reached
+                print(f"Embedding failed after {attempt + 1} attempts: {e}")
+                raise
+
+
+async def batch_embed_with_chunking(
+    texts: List[str],
+    client: OpenAI,
+    model: str = "text-embedding-3-large", 
+    batch_size: int = 100,
+    max_concurrent: int = 5
+) -> List[List[float]]:
+    """
+    Process large lists of texts with batching and concurrency control
+    
+    Args:
+        texts: List of texts to embed
+        client: OpenAI client
+        model: Embedding model
+        batch_size: Size of each batch
+        max_concurrent: Maximum concurrent requests
+        
+    Returns:
+        List of embedding vectors in original order
+    """
+    if not texts:
+        return []
+    
+    # Split into batches
+    batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
+    
+    # Create semaphore to limit concurrent requests
+    semaphore = asyncio.Semaphore(max_concurrent)
+    
+    async def process_batch(batch: List[str]) -> List[List[float]]:
+        async with semaphore:
+            return await embed_batch_async(batch, client, model)
+    
+    # Process all batches concurrently
+    batch_tasks = [process_batch(batch) for batch in batches]
+    batch_results = await asyncio.gather(*batch_tasks)
+    
+    # Flatten results to maintain original order
+    all_embeddings = []
+    for batch_result in batch_results:
+        all_embeddings.extend(batch_result)
+    
+    return all_embeddings
+
+
+class AsyncOpenAIEmbedder:
+    """
+    Async wrapper for OpenAI embeddings with advanced batching and caching
+    """
+    
+    def __init__(
+        self, 
+        api_key: str, 
+        model: str = "text-embedding-3-large",
+        batch_size: int = 100,
+        max_concurrent: int = 5
+    ):
+        self.client = OpenAI(api_key=api_key)
+        self.model = model
+        self.batch_size = batch_size
+        self.max_concurrent = max_concurrent
+        self.logger = get_logger("async_embedder")
+        
+    async def embed_texts(self, texts: List[str]) -> List[List[float]]:
+        """
+        Embed multiple texts with batching and error handling
+        
+        Args:
+            texts: List of texts to embed
+            
+        Returns:
+            List of embedding vectors
+        """
+        if not texts:
+            return []
+        
+        start_time = asyncio.get_event_loop().time()
+        
+        try:
+            embeddings = await batch_embed_with_chunking(
+                texts=texts,
+                client=self.client,
+                model=self.model,
+                batch_size=self.batch_size,
+                max_concurrent=self.max_concurrent
+            )
+            
+            duration = asyncio.get_event_loop().time() - start_time
+            self.logger.info(
+                f"Embedded {len(texts)} texts in {duration:.2f}s "
+                f"({len(texts)/duration:.1f} texts/sec)"
+            )
+            
+            return embeddings
+            
+        except Exception as e:
+            self.logger.error(f"Batch embedding failed: {e}")
+            raise
+    
+    async def embed_single(self, text: str) -> List[float]:
+        """
+        Embed a single text with retry logic
+        
+        Args:
+            text: Text to embed
+            
+        Returns:
+            Embedding vector
+        """
+        embeddings = await self.embed_texts([text])
+        return embeddings[0] if embeddings else []
+
+
+# Utility function for backwards compatibility
+def create_async_embedder(api_key: str, model: str = "text-embedding-3-large") -> AsyncOpenAIEmbedder:
+    """
+    Factory function to create async embedder with sensible defaults
+    
+    Args:
+        api_key: OpenAI API key
+        model: Embedding model to use
+        
+    Returns:
+        Configured AsyncOpenAIEmbedder instance
+    """
+    return AsyncOpenAIEmbedder(
+        api_key=api_key,
+        model=model,
+        batch_size=100,  # OpenAI's recommended batch size
+        max_concurrent=5  # Conservative concurrent request limit
+    )

@@ -105,6 +105,69 @@ class RelevanceBasedCleanup(MemoryCleanupStrategy):
         return max(0, self.min_relevance - memory.relevance_score)
 
 
+def simhash_64(text: str) -> int:
+    """
+    Generate 64-bit SimHash for near-duplicate detection
+    
+    Args:
+        text: Input text to hash
+        
+    Returns:
+        64-bit SimHash as integer
+    """
+    bits = [0] * 64
+    for token in text.lower().split():
+        h = int(hashlib.md5(token.encode()).hexdigest(), 16)
+        for i in range(64):
+            bits[i] += 1 if (h >> i) & 1 else -1
+    
+    out = 0
+    for i, b in enumerate(bits):
+        if b > 0:
+            out |= (1 << i)
+    return out
+
+
+def hamming_distance(a: int, b: int) -> int:
+    """Calculate Hamming distance between two integers"""
+    return (a ^ b).bit_count()
+
+
+class Deduper:
+    """SimHash-based near-duplicate detector"""
+    
+    def __init__(self, threshold: int = 6):
+        """
+        Initialize deduper
+        
+        Args:
+            threshold: Maximum Hamming distance to consider as duplicate
+        """
+        self.threshold = threshold
+        self.buckets = {}  # prefix -> [simhashes]
+    
+    def seen_near(self, text: str) -> bool:
+        """
+        Check if text is near-duplicate of previously seen content
+        
+        Args:
+            text: Text to check
+            
+        Returns:
+            True if near-duplicate found
+        """
+        sh = simhash_64(text)
+        key = sh >> 48  # Use top 16 bits as bucket key
+        lst = self.buckets.setdefault(key, [])
+        
+        for prev in lst:
+            if hamming_distance(prev, sh) <= self.threshold:
+                return True
+        
+        lst.append(sh)
+        return False
+
+
 class DuplicateCleanup(MemoryCleanupStrategy):
     """Remove duplicate or very similar memories"""
 
@@ -131,6 +194,22 @@ class DuplicateCleanup(MemoryCleanupStrategy):
     def get_priority(self, memory: Memory) -> float:
         # Shorter content gets higher cleanup priority if it's a duplicate
         return 1.0 / max(1, len(memory.content) / 100)
+
+
+class SimHashDuplicateCleanup(MemoryCleanupStrategy):
+    """Remove near-duplicate memories using SimHash"""
+
+    def __init__(self, hamming_threshold: int = 6):
+        super().__init__("simhash_duplicate")
+        self.hamming_threshold = hamming_threshold
+        self.deduper = Deduper(hamming_threshold)
+
+    def should_cleanup(self, memory: Memory, context: Dict[str, Any]) -> bool:
+        return self.deduper.seen_near(memory.content)
+
+    def get_priority(self, memory: Memory) -> float:
+        # Shorter content gets higher cleanup priority if it's a near-duplicate
+        return 1.0 / max(1, len(memory.content) / 50)
 
 
 class MetadataBasedCleanup(MemoryCleanupStrategy):
@@ -537,6 +616,9 @@ def create_default_memory_manager(memory_engine: MemoryEngine) -> MemoryManager:
     )  # Remove very low relevance
     manager.add_cleanup_strategy(
         DuplicateCleanup(similarity_threshold=0.95)
-    )  # Remove duplicates
+    )  # Remove exact duplicates
+    manager.add_cleanup_strategy(
+        SimHashDuplicateCleanup(hamming_threshold=6)
+    )  # Remove near-duplicates
 
     return manager

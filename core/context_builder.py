@@ -1,11 +1,62 @@
-from typing import Optional
+from typing import Optional, List
 from .memory_engine import MemoryEngine
+from .similarity_utils import mmr
+import numpy as np
 
 
 class ContextBuilder:
     def __init__(self, memory_engine: MemoryEngine, max_context_length: int = 4000):
         self.memory_engine = memory_engine
         self.max_context_length = max_context_length
+
+    def retrieve(self, query: str, k: int = 12) -> List:
+        """
+        Retrieve diverse memories using MMR to avoid near-duplicates
+        
+        Args:
+            query: Search query
+            k: Number of results to return
+            
+        Returns:
+            List of diverse, relevant memories
+        """
+        if not self.memory_engine.vector_store or not self.memory_engine.embedding_provider:
+            return self.memory_engine.get_recent_memories(k)
+        
+        # Get expanded pool of candidates (2-3x target size)
+        candidate_k = min(k * 3, 50)
+        candidates = self.memory_engine.search_memories(query, candidate_k)
+        
+        if not candidates or len(candidates) <= k:
+            return candidates
+        
+        try:
+            # Extract embeddings from candidates
+            doc_vecs = []
+            valid_candidates = []
+            
+            for memory in candidates:
+                if memory.embedding is not None:
+                    doc_vecs.append(memory.embedding)
+                    valid_candidates.append(memory)
+            
+            if not doc_vecs or len(valid_candidates) <= k:
+                return valid_candidates[:k]
+            
+            # Get query embedding
+            query_embedding = self.memory_engine._embed(query)
+            if query_embedding is None:
+                return valid_candidates[:k]
+            
+            # Apply MMR to select diverse results
+            selected_indices = mmr(query_embedding, doc_vecs, k=k, lambda_mult=0.65)
+            
+            return [valid_candidates[i] for i in selected_indices]
+            
+        except Exception as e:
+            # Fallback to regular results
+            print(f"MMR diversification failed: {e}")
+            return candidates[:k]
 
     def build_context(
         self,
