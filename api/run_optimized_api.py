@@ -101,12 +101,12 @@ async def stats():
 # Fix: Add missing /memories/stats endpoint for frontend
 @app.get("/memories/stats")
 async def memory_stats():
-    from datetime import datetime
+    from datetime import datetime, timezone
     return {
         "total_memories": len(memory_engine.memories),
         "count": len(memory_engine.memories),
         "faiss_vectors": memory_engine.vector_store.index.ntotal if hasattr(memory_engine.vector_store, 'index') else 0,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "system": "chatgpt_memory_system",
         "status": "active"
     }
@@ -187,7 +187,7 @@ async def chat(request: ChatRequest):
                 quality_memories.append(result)
         
         # Option 1: Use GPT-4 for intelligent responses (if available)
-        use_gpt = request.dict().get("use_gpt", True)  # Default to GPT-4 if available
+        use_gpt = request.model_dump().get("use_gpt", True)  # Default to GPT-4 if available
         
         if use_gpt and quality_memories:
             try:

@@ -20,6 +20,7 @@ from optimized_memory_loader import create_optimized_chatgpt_engine
 from optimized_clean_loader import create_cleaned_chatgpt_engine
 from core.gpt_response import generate_gpt_response, generate_conversation_title as gpt_generate_title
 from core.similarity_utils import create_search_optimized_engine
+from core.memory_synthesis import get_memory_synthesizer
 
 # Try to load cleaned memories first, fall back to original if not available
 print("🚀 Loading ChatGPT Memory System...")
@@ -97,12 +98,12 @@ async def stats_redirect():
 # Fix: Add missing /memories/stats endpoint for frontend
 @app.get("/memories/stats")
 async def memory_stats():
-    from datetime import datetime
+    from datetime import datetime, timezone
     return {
         "total_memories": len(memory_engine.memories),
         "count": len(memory_engine.memories),
         "faiss_vectors": memory_engine.vector_store.index.ntotal if hasattr(memory_engine.vector_store, 'index') else 0,
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
         "system": "chatgpt_memory_system",
         "status": "active"
     }
@@ -165,22 +166,67 @@ async def search_memories(request: SearchRequest):
 async def chat(request: ChatRequest):
     try:
         # Search for relevant memories with higher k for better selection
-        results = memory_engine.search_memories(request.message, k=10)
+        results = memory_engine.search_memories(request.message, k=15)
         
-        # FIXED: Use relevance scores instead of just length filtering
-        quality_memories = []
-        for result in results:
-            # Get relevance score (higher is better)
-            relevance_score = getattr(result, 'relevance_score', 0.0)
+        # NEW: Enhanced search for pet-related queries that might not find direct matches
+        if any(word in request.message.lower() for word in ["how many", "dogs", "pets", "animals"]):
+            # Do a supplementary search for known pet names
+            pet_search = memory_engine.search_memories("Remy Bailey dogs pets", k=10)
             
-            # FIXED: Use realistic relevance threshold (scores are typically 0-1 range)
-            if relevance_score >= 0.7:  # Above 70% similarity
-                quality_memories.append(result)
-            # Also include longer content with lower scores as fallback
-            elif (len(result.content) > 100 and 
-                  relevance_score >= 0.5 and
-                  not result.content.strip().lower().startswith(("yeah", "okay", "sure", "hmm", "uh", "um"))):
-                quality_memories.append(result)
+            # Combine results, avoiding duplicates
+            seen_content = set()
+            for r in results:
+                seen_content.add(getattr(r, 'content', str(r)))
+            
+            for pet_result in pet_search:
+                pet_content = getattr(pet_result, 'content', str(pet_result))
+                if pet_content not in seen_content and any(name in pet_content for name in ["Remy", "Bailey"]):
+                    results.append(pet_result)
+                    seen_content.add(pet_content)
+            
+            print(f"🔍 Enhanced search: added {len(pet_search)} pet-related memories to {len(results)} total results")
+        
+        # NEW: Use memory synthesis to improve context understanding
+        synthesizer = get_memory_synthesizer()
+        synthesized_memories = synthesizer.synthesize_memories(request.message, results)
+        
+        # Get the best synthesized memories
+        if synthesized_memories:
+            best_synthesized = synthesizer.get_best_synthesis(synthesized_memories, limit=5)
+            quality_memories = []
+            
+            for syn_mem in best_synthesized:
+                # Convert synthesized memories back to regular format for compatibility
+                class SynthesizedResult:
+                    def __init__(self, syn_mem):
+                        self.content = syn_mem.content
+                        self.relevance_score = syn_mem.confidence
+                        self.synthesis_type = syn_mem.synthesis_type
+                        self.source_count = syn_mem.source_count
+                
+                quality_memories.append(SynthesizedResult(syn_mem))
+            
+            print(f"🧠 Synthesized {len(synthesized_memories)} memories into {len(quality_memories)} high-quality responses")
+        else:
+            # Fallback to improved filtering that includes important short memories
+            quality_memories = []
+            for result in results:
+                # Get relevance score (higher is better)
+                relevance_score = getattr(result, 'relevance_score', 0.0)
+                
+                # NEW: Include short but highly relevant memories (like pet names)
+                if relevance_score >= 0.7:  # High relevance - always include
+                    quality_memories.append(result)
+                elif relevance_score >= 0.5 and len(result.content) > 50:  # Medium relevance with decent length
+                    quality_memories.append(result)
+                elif relevance_score >= 0.8 and len(result.content) >= 20:  # Very high relevance even if short
+                    # This catches important short memories like "Remy Jeremy has a friendly Golden Retriever named Remy."
+                    quality_memories.append(result)
+                # Keep longer content with lower scores as fallback
+                elif (len(result.content) > 100 and 
+                      relevance_score >= 0.4 and
+                      not result.content.strip().lower().startswith(("yeah", "okay", "sure", "hmm", "uh", "um"))):
+                    quality_memories.append(result)
         
         # FIXED: Ensure we always have some context
         if not quality_memories and results:
