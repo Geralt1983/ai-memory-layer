@@ -41,6 +41,8 @@ fresh_venv/
 .env.*
 .env.local
 .env.*.local
+.env.chatgpt
+deploy_ai_assistant.sh
 
 # Testing
 .coverage
