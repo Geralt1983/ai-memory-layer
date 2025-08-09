@@ -57,6 +57,9 @@ COHERE_EMBED_MODEL=embed-english-v3.0  # Options: embed-english-v3.0, embed-mult
 EMBEDDING_PRIMARY_PROVIDER=openai
 EMBEDDING_FALLBACK_PROVIDER=cohere
 
+# Advanced: Tag-based routing
+EMBED_ROUTING="obsidian:openai,commits:voyage,docs:cohere,default:fallback"
+
 # Caching
 EMBEDDING_CACHE_ENABLED=true  # Enable caching layer
 EMBED_CACHE=.cache/embeddings.json  # Cache file path
@@ -65,10 +68,15 @@ EMBED_CACHE=.cache/embeddings.json  # Cache file path
 ### Python Configuration
 
 ```python
-from integrations.embeddings_factory import get_embedder
+from integrations.embeddings_factory import get_embedder, get_embedder_for
 
 # Override provider programmatically
 embedder = get_embedder(provider="openai")
+
+# Tag-based routing (requires EMBED_ROUTING environment variable)
+obsidian_embedder = get_embedder_for("obsidian")  # Routes to configured provider
+commit_embedder = get_embedder_for("commits")     # Routes to different provider
+default_embedder = get_embedder_for("unknown")    # Uses default route
 
 # With custom configuration
 config = {
@@ -91,9 +99,9 @@ The default provider with excellent performance and wide model selection.
 # - text-embedding-3-large (3072 dims) - Best performance
 ```
 
-### Voyage (Stub - Implement when needed)
+### Voyage (✅ Available with lazy import)
 
-State-of-the-art embeddings optimized for retrieval.
+State-of-the-art embeddings optimized for retrieval. Auto-installs when needed.
 
 ```python
 # Models available:
@@ -114,6 +122,55 @@ Multilingual embeddings with compression support.
 # - embed-multilingual-v3.0 (1024 dims) - 100+ languages
 # - embed-english-light-v3.0 (384 dims) - Smaller English
 # - embed-multilingual-light-v3.0 (384 dims) - Smaller multilingual
+```
+
+## Advanced Features
+
+### Tag-Based Provider Routing
+
+Route different content types to different providers for optimal performance:
+
+```bash
+# Configure routing rules
+export EMBED_ROUTING="obsidian:openai,commits:voyage,docs:cohere,default:fallback"
+```
+
+```python
+from integrations.embeddings_factory import get_embedder_for
+
+# Each content type gets routed to its optimal provider
+obsidian_notes = get_embedder_for("obsidian")    # -> OpenAI
+code_commits = get_embedder_for("commits")       # -> Voyage  
+documentation = get_embedder_for("docs")         # -> Cohere
+unknown_content = get_embedder_for("emails")     # -> Fallback (default)
+```
+
+**Use Cases:**
+- **Obsidian notes** → OpenAI (excellent for general text)
+- **Code commits** → Voyage (optimized for technical content)  
+- **Documentation** → Cohere (strong multilingual support)
+- **Default fallback** → High availability with automatic switching
+
+### Operational Monitoring
+
+The system includes monitoring endpoints for production deployments:
+
+```bash
+# Check active provider health
+curl /internal/embeddings/health
+# {"provider":"openai","ok":true,"embedding_dimension":1536}
+
+# List all available providers and configuration  
+curl /internal/embeddings/providers
+# {"active_provider":"openai","available_providers":{"openai":true,"voyage":false,...}}
+
+# Test specific provider
+curl /internal/embeddings/test/voyage
+# {"provider":"voyage","ok":true,"test_embedding_count":1}
+
+# Test routing for specific tag
+curl /internal/embeddings/routing/obsidian
+# {"tag":"obsidian","resolved_provider":"OpenAIEmbeddings","ok":true}
 ```
 
 ## High Availability with Fallback

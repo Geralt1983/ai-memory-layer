@@ -2,7 +2,7 @@
 
 import os
 from fastapi import APIRouter, HTTPException
-from integrations.embeddings_factory import get_embedder, get_available_providers
+from integrations.embeddings_factory import get_embedder, get_available_providers, get_embedder_for
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -47,6 +47,7 @@ async def embeddings_providers():
             "embedding_cache_enabled": os.getenv("EMBEDDING_CACHE_ENABLED", "false"),
             "embedding_primary_provider": os.getenv("EMBEDDING_PRIMARY_PROVIDER"),
             "embedding_fallback_provider": os.getenv("EMBEDDING_FALLBACK_PROVIDER"),
+            "embed_routing": os.getenv("EMBED_ROUTING"),
         }
     }
 
@@ -74,6 +75,37 @@ async def test_provider(provider: str):
             status_code=500,
             detail={
                 "provider": provider,
+                "ok": False,
+                "error": str(e),
+                "error_type": type(e).__name__
+            }
+        )
+
+
+@router.get("/embeddings/routing/{tag}")
+async def test_routing(tag: str):
+    """Test provider routing for a specific tag.
+    
+    Args:
+        tag: Source tag to test routing for (e.g., 'obsidian', 'commits')
+    """
+    try:
+        embedder = get_embedder_for(tag)
+        test_result = embedder.embed([f"Testing routing for {tag} tag"])
+        
+        return {
+            "tag": tag,
+            "resolved_provider": embedder.__class__.__name__,
+            "ok": True,
+            "test_embedding_count": len(test_result),
+            "embedding_dimension": embedder.get_embedding_dimension() if hasattr(embedder, 'get_embedding_dimension') else None,
+            "sample_vector_length": len(test_result[0]) if test_result else 0
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "tag": tag,
                 "ok": False,
                 "error": str(e),
                 "error_type": type(e).__name__
