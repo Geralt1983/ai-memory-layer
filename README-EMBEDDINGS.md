@@ -195,6 +195,20 @@ Sample response (A/B):
 }
 ```
 
+## A/B CSV metrics (quick and dirty)
+Turn on lightweight CSV logging for A/B runs:
+```bash
+export EMBED_AB_LOG=./data/ab_metrics.csv
+```
+Each batch appends one row with:
+```csv
+ts_epoch_ms,batch_size,primary_provider,primary_model,shadow_provider,shadow_model,primary_ms,shadow_ms,mean_cosine,shadow_error
+```
+Notes:
+- `mean_cosine` is the per-item cosine mean between primary/shadow vectors when dimensions match.
+- Logging is best-effort and never raises; it will not impact the main call path.
+- This is a simple ops aid; for long-term metrics, ship the data to your preferred store.
+
 ### Tag-Based Provider Routing
 
 Route different content types to different providers for optimal performance:

@@ -14,6 +14,11 @@ import time
 from typing import List, Optional, Dict, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from ..embeddings_interfaces import EmbeddingProvider
+from ..ops.ab_metrics import (
+    ab_log_enabled,
+    log_ab_event_row,
+    compute_cosine_mean,
+)
 
 
 class DualWriteEmbeddings:
@@ -197,6 +202,42 @@ class DualWriteEmbeddings:
                     self.logger.info(f"Embedding difference detected: avg similarity {avg_similarity:.3f}")
         
         self.stats["total_time"] += time.time() - start_time
+        
+        # Optional A/B CSV logging
+        path = ab_log_enabled()
+        if path and primary_result is not None:
+            # Provider/model metadata (best-effort)
+            def _name(x): 
+                return getattr(x, "provider_name", lambda: x.__class__.__name__)()
+            def _model(x): 
+                return getattr(x, "model_name", lambda: getattr(x, "model", ""))()
+            
+            # Calculate cosine similarity if shadow succeeded
+            mean_cos = None
+            if shadow_result is not None and not isinstance(shadow_result, Exception):
+                mean_cos = compute_cosine_mean(primary_result, shadow_result)
+            
+            # Get timing from stats
+            primary_ms = self.stats.get("primary_time", 0) * 1000  # Convert to ms
+            shadow_ms = self.stats.get("shadow_time", 0) * 1000 if shadow_result else None
+            shadow_err = str(shadow_error) if shadow_error else ""
+            
+            try:
+                log_ab_event_row(
+                    path=path,
+                    batch_size=len(texts),
+                    primary_provider=_name(self.primary),
+                    primary_model=_model(self.primary),
+                    shadow_provider=_name(self.shadow) if self.shadow else "",
+                    shadow_model=_model(self.shadow) if self.shadow else "",
+                    primary_ms=primary_ms,
+                    shadow_ms=shadow_ms,
+                    mean_cosine=mean_cos,
+                    shadow_error=shadow_err,
+                )
+            except Exception:
+                # A/B logging must never break the call path
+                pass
         
         # Always return primary result or raise primary error
         if primary_error:
