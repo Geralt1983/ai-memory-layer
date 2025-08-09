@@ -46,10 +46,22 @@ def get_embedder(
     # Handle caching wrapper if enabled
     cache_enabled = os.getenv("EMBEDDING_CACHE_ENABLED", "false").lower() == "true"
     
+    # Handle A/B testing (dual-write) if enabled
+    ab_write_config = os.getenv("EMBED_AB_WRITE", "").strip()
+    
     # Create base provider
     base_provider = _create_provider(provider, config)
     
-    # Wrap with cache if enabled
+    # Wrap with dual-write for A/B testing if configured
+    if ab_write_config:
+        try:
+            from .providers.dualwrite import DualWriteEmbeddings
+            base_provider = _create_dualwrite_provider(base_provider, ab_write_config)
+        except ImportError:
+            # Dual-write provider not available, use base
+            pass
+    
+    # Wrap with cache if enabled (after dual-write)
     if cache_enabled:
         try:
             from .providers.cached import CachedEmbeddings
@@ -140,6 +152,57 @@ def _create_provider(provider: str, config: Optional[Dict[str, Any]] = None) -> 
         )
 
 
+def _create_dualwrite_provider(primary: EmbeddingProvider, config_str: str) -> EmbeddingProvider:
+    """Create dual-write provider from configuration string.
+    
+    Args:
+        primary: Primary embedding provider
+        config_str: Configuration in multiple formats:
+                   - "shadow_provider:percentage" e.g., "voyage:50" 
+                   - "shadow_provider" (defaults to 100%)
+                   - "primary,shadow" e.g., "openai,voyage" (100% dual-write)
+        
+    Returns:
+        DualWriteEmbeddings instance
+    """
+    from .providers.dualwrite import DualWriteEmbeddings
+    
+    # Parse different config formats
+    if "," in config_str:
+        # Format: "primary,shadow" - 100% dual-write
+        parts = config_str.split(",", 1)
+        shadow_provider_name = parts[1].strip()
+        percentage = 100.0
+    elif ":" in config_str:
+        # Format: "shadow:percentage"
+        shadow_provider_name, percentage_str = config_str.split(":", 1)
+        try:
+            percentage = float(percentage_str)
+        except ValueError:
+            percentage = 100.0
+    else:
+        # Format: "shadow" (defaults to 100%)
+        shadow_provider_name = config_str
+        percentage = 100.0
+    
+    # Create shadow provider
+    try:
+        shadow_provider = _create_provider(shadow_provider_name.strip())
+    except (ValueError, ImportError) as e:
+        # Shadow provider not available, return primary only
+        import logging
+        logging.warning(f"Shadow provider {shadow_provider_name} not available: {e}")
+        return primary
+    
+    # Create dual-write embeddings
+    return DualWriteEmbeddings(
+        primary=primary,
+        shadow=shadow_provider,
+        shadow_percentage=percentage,
+        compare_results=True  # Enable comparison by default for A/B testing
+    )
+
+
 def _parse_routing(raw: str) -> Dict[str, str]:
     """Parse EMBED_ROUTING string into tag -> provider mapping.
     
@@ -206,6 +269,7 @@ def get_available_providers() -> Dict[str, bool]:
         "anthropic": False,
         "fallback": False,
         "cached": False,
+        "dualwrite": True,  # Always available (built-in)
     }
     
     # Check optional providers
@@ -240,3 +304,87 @@ def get_available_providers() -> Dict[str, bool]:
         pass
     
     return providers
+
+
+def get_embedder_ab() -> EmbeddingProvider:
+    """Get embedder with A/B testing (dual-write) if configured.
+    
+    This is a specialized factory function that creates dual-write embeddings
+    when EMBED_AB_WRITE is set, allowing you to shadow-write to a second provider
+    while returning the primary provider's results.
+    
+    Returns:
+        EmbeddingProvider instance (DualWriteEmbeddings if A/B testing enabled)
+        
+    Environment Variables:
+        EMBED_AB_WRITE: Shadow provider configuration
+                       Format: "provider:percentage" or "provider" (defaults to 100%)
+                       Examples: "voyage:50", "cohere:25", "openai"
+        
+        EMBEDDING_PROVIDER: Primary provider (default: openai)
+    
+    Usage:
+        # Configure A/B testing
+        export EMBED_AB_WRITE="voyage:50"
+        export EMBEDDING_PROVIDER="openai"
+        
+        # Use specialized A/B factory
+        from integrations.embeddings_factory import get_embedder_ab
+        embedder = get_embedder_ab()
+        vectors = embedder.embed(texts)  # Returns primary, also sends to shadow
+        
+        # Check A/B statistics
+        if hasattr(embedder, 'get_stats'):
+            stats = embedder.get_stats()
+            print(f"Shadow requests: {stats['shadow_requests']}")
+    """
+    ab_write_config = os.getenv("EMBED_AB_WRITE", "").strip()
+    
+    if not ab_write_config:
+        # No A/B testing configured, return standard embedder
+        return get_embedder()
+    
+    # Parse A/B configuration
+    if "," in ab_write_config:
+        # Format: "primary,shadow" - 100% dual-write
+        primary_provider_name, shadow_provider_name = ab_write_config.split(",", 1)
+        primary_provider_name = primary_provider_name.strip()
+        shadow_provider_name = shadow_provider_name.strip()
+        percentage = 100.0
+    elif ":" in ab_write_config:
+        # Format: "shadow:percentage"
+        shadow_provider_name, percentage_str = ab_write_config.split(":", 1)
+        shadow_provider_name = shadow_provider_name.strip()
+        try:
+            percentage = float(percentage_str)
+        except ValueError:
+            percentage = 100.0
+        # Get primary provider from standard env var
+        primary_provider_name = os.getenv("EMBEDDING_PROVIDER", "openai")
+    else:
+        # Format: "shadow" (defaults to 100%)
+        shadow_provider_name = ab_write_config.strip()
+        percentage = 100.0
+        # Get primary provider from standard env var
+        primary_provider_name = os.getenv("EMBEDDING_PROVIDER", "openai")
+    
+    # Create primary provider
+    primary_provider = _create_provider(primary_provider_name.lower())
+    
+    # Create shadow provider
+    try:
+        shadow_provider = _create_provider(shadow_provider_name.strip().lower())
+    except (ValueError, ImportError) as e:
+        # Shadow provider not available, return primary only with warning
+        import logging
+        logging.warning(f"A/B testing disabled: shadow provider {shadow_provider_name} not available: {e}")
+        return primary_provider
+    
+    # Create dual-write embeddings for A/B testing
+    from .providers.dualwrite import DualWriteEmbeddings
+    return DualWriteEmbeddings(
+        primary=primary_provider,
+        shadow=shadow_provider,
+        shadow_percentage=percentage,
+        compare_results=True  # Enable comparison for A/B testing
+    )

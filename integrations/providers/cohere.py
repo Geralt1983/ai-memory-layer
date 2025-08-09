@@ -1,6 +1,7 @@
-"""Cohere embedding provider stub - implement when cohere package is available."""
+"""Cohere embedding provider with lazy import and full functionality."""
 
 import os
+import logging
 from typing import List, Optional, Literal
 from ..embeddings_interfaces import EmbeddingProvider
 
@@ -10,7 +11,7 @@ class CohereEmbeddings:
     
     Cohere offers multilingual embedding models with different sizes:
     - embed-english-v3.0: English embeddings (1024 dims)
-    - embed-multilingual-v3.0: 100+ languages (1024 dims)
+    - embed-multilingual-v3.0: 100+ languages (1024 dims) 
     - embed-english-light-v3.0: Smaller English model (384 dims)
     - embed-multilingual-light-v3.0: Smaller multilingual (384 dims)
     
@@ -27,7 +28,7 @@ class CohereEmbeddings:
         input_type: Literal["search_document", "search_query", "classification", "clustering"] = "search_document",
         truncate: Literal["NONE", "START", "END"] = "END"
     ):
-        """Initialize Cohere embeddings.
+        """Initialize Cohere embeddings with lazy import.
         
         Args:
             model: Model name (embed-english-v3.0, embed-multilingual-v3.0, etc.)
@@ -39,10 +40,11 @@ class CohereEmbeddings:
         self.api_key = api_key or os.getenv("COHERE_API_KEY")
         self.input_type = input_type
         self.truncate = truncate
+        self.client = None
+        self._available = False
         
-        # TODO: Uncomment when cohere is installed
-        # import cohere
-        # self.client = cohere.Client(api_key=self.api_key)
+        # Lazy initialization - will be called on first use
+        self._initialize_client()
         
         # Dimension mapping for different models
         self.dimension_map = {
@@ -55,6 +57,27 @@ class CohereEmbeddings:
             "embed-multilingual-v2.0": 768,
         }
     
+    def _initialize_client(self):
+        """Initialize Cohere client with lazy import."""
+        if self.client is not None:
+            return
+            
+        try:
+            import cohere
+            if not self.api_key:
+                raise ValueError("COHERE_API_KEY environment variable required")
+            self.client = cohere.Client(api_key=self.api_key)
+            self._available = True
+            logging.info(f"Cohere client initialized with model {self.model}")
+        except ImportError:
+            logging.warning("Cohere package not installed. Run: pip install cohere")
+            self.client = None
+            self._available = False
+        except Exception as e:
+            logging.error(f"Failed to initialize Cohere client: {e}")
+            self.client = None
+            self._available = False
+    
     def embed(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings using Cohere.
         
@@ -64,19 +87,28 @@ class CohereEmbeddings:
         Returns:
             List of embedding vectors
         """
-        # TODO: Implement when cohere package is available
-        # response = self.client.embed(
-        #     texts=texts,
-        #     model=self.model,
-        #     input_type=self.input_type,
-        #     truncate=self.truncate
-        # )
-        # return response.embeddings
+        if not self._available or self.client is None:
+            self._initialize_client()
+            if not self._available:
+                raise RuntimeError(
+                    "Cohere client not available. "
+                    "Install cohere package and set COHERE_API_KEY."
+                )
         
-        raise NotImplementedError(
-            "Cohere embeddings not yet implemented. "
-            "Install cohere package and uncomment implementation."
-        )
+        if not texts:
+            return []
+            
+        try:
+            response = self.client.embed(
+                texts=texts,
+                model=self.model,
+                input_type=self.input_type,
+                truncate=self.truncate
+            )
+            return response.embeddings
+        except Exception as e:
+            logging.error(f"Cohere embedding failed: {e}")
+            raise
     
     def embed_text(self, text: str) -> Optional[List[float]]:
         """Generate embedding for single text.
@@ -101,6 +133,10 @@ class CohereEmbeddings:
         """
         return self.dimension_map.get(self.model, 1024)
     
+    def is_available(self) -> bool:
+        """Check if Cohere embeddings are available."""
+        return self._available
+    
     def embed_for_search(
         self,
         documents: Optional[List[str]] = None,
@@ -120,14 +156,24 @@ class CohereEmbeddings:
         result = {}
         
         if documents:
-            # Set input_type for documents
-            self.input_type = "search_document"
-            result["document_embeddings"] = self.embed(documents)
+            # Create a temporary instance for documents
+            doc_embedder = CohereEmbeddings(
+                model=self.model,
+                api_key=self.api_key,
+                input_type="search_document",
+                truncate=self.truncate
+            )
+            result["document_embeddings"] = doc_embedder.embed(documents)
         
         if queries:
-            # Set input_type for queries
-            self.input_type = "search_query"
-            result["query_embeddings"] = self.embed(queries)
+            # Create a temporary instance for queries  
+            query_embedder = CohereEmbeddings(
+                model=self.model,
+                api_key=self.api_key,
+                input_type="search_query",
+                truncate=self.truncate
+            )
+            result["query_embeddings"] = query_embedder.embed(queries)
         
         return result
     

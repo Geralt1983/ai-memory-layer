@@ -126,6 +126,55 @@ Multilingual embeddings with compression support.
 
 ## Advanced Features
 
+### A/B Testing with Dual-Write
+
+Shadow-write embedding requests to a second provider while returning the primary provider's results, enabling quality and latency comparison without changing runtime behavior:
+
+```bash
+# Configure dual-write A/B testing
+export EMBED_AB_WRITE="openai,voyage"     # 100% dual-write: primary=openai, shadow=voyage
+# OR
+export EMBED_AB_WRITE="voyage:50"         # 50% shadow traffic to voyage
+# OR
+export EMBED_AB_WRITE="cohere:25"         # 25% shadow traffic to cohere
+```
+
+```python
+from integrations.embeddings_factory import get_embedder_ab
+
+# Use specialized A/B testing factory
+embedder = get_embedder_ab()     # Returns dual-write wrapper if EMBED_AB_WRITE set
+vectors = embedder.embed(texts)  # Returns primary result, also sends to shadow
+
+# Check A/B testing statistics
+if hasattr(embedder, 'get_stats'):
+    stats = embedder.get_stats()
+    print(f"Primary success rate: {stats['primary_success_rate']:.2%}")
+    print(f"Shadow requests: {stats['shadow_requests']}")
+    print(f"Average similarity: {stats.get('avg_cosine_similarity', 'N/A')}")
+    print(f"Primary avg time: {stats.get('primary_avg_time', 0):.3f}s")
+    print(f"Shadow avg time: {stats.get('shadow_avg_time', 0):.3f}s")
+
+# Progressive rollout: start with 10%, increase to 100%
+if hasattr(embedder, 'set_shadow_percentage'):
+    embedder.set_shadow_percentage(10.0)   # Start with 10% shadow traffic
+    # ... monitor for issues ...
+    embedder.set_shadow_percentage(50.0)   # Increase to 50%
+    # ... continue monitoring ...
+    embedder.set_shadow_percentage(100.0)  # Full dual-write for comparison
+```
+
+**Configuration Formats:**
+- `"primary,shadow"` - 100% dual-write with explicit primary and shadow providers
+- `"shadow:percentage"` - Shadow provider with traffic percentage (primary from EMBEDDING_PROVIDER)
+- `"shadow"` - Shadow provider with 100% traffic (primary from EMBEDDING_PROVIDER)
+
+**Use Cases:**
+- **Quality comparison**: Compare embedding quality between providers
+- **Performance testing**: Measure latency differences under production load
+- **Migration testing**: Validate new provider before switching
+- **Cost analysis**: Compare API costs and rate limits
+
 ### Tag-Based Provider Routing
 
 Route different content types to different providers for optimal performance:
