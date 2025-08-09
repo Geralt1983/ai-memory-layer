@@ -99,3 +99,98 @@ def mock_openai_client():
     mock_client.embeddings.create.return_value = mock_embedding_response
 
     return mock_client
+
+
+# Production-grade test fixtures for comprehensive embedding testing
+
+
+@pytest.fixture(autouse=True)
+def clean_embedding_env(monkeypatch):
+    """Clean up embedding-related environment variables before each test."""
+    for k in ["EMBEDDING_PROVIDER", "EMBED_ROUTING", "EMBED_AB_WRITE",
+              "OPENAI_EMBED_MODEL", "VOYAGE_EMBED_MODEL", "COHERE_EMBED_MODEL"]:
+        monkeypatch.delenv(k, raising=False)
+
+
+@pytest.fixture
+def fake_openai_embeddings(monkeypatch):
+    """Mock OpenAI embeddings client to avoid network calls."""
+    
+    class _MockData:
+        def __init__(self, embedding):
+            self.embedding = embedding
+    
+    class _MockResponse:
+        def __init__(self, embeddings):
+            self.data = [_MockData(emb) for emb in embeddings]
+    
+    class _MockEmbeddings:
+        @staticmethod
+        def create(model, input, **kwargs):
+            # Return deterministic embeddings based on input
+            embeddings = [[float(i), float(i) + 0.1] for i, _ in enumerate(input)]
+            return _MockResponse(embeddings)
+    
+    class _MockClient:
+        def __init__(self, api_key=None, **kwargs):
+            self.embeddings = _MockEmbeddings()
+    
+    # Monkeypatch the OpenAI client in our embeddings module
+    monkeypatch.setattr("integrations.embeddings.OpenAI", _MockClient)
+    yield
+
+
+@pytest.fixture 
+def fake_voyage_embeddings(monkeypatch):
+    """Mock Voyage client to avoid network calls."""
+    
+    class _MockVoyageResponse:
+        def __init__(self, texts):
+            # Voyage-specific mock embeddings (different from OpenAI)
+            self.embeddings = [[20.0 + float(i)] for i, _ in enumerate(texts)]
+    
+    class _MockVoyageClient:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+        
+        def embed(self, texts, model, input_type=None, truncation=None):
+            return _MockVoyageResponse(texts)
+    
+    # Patch the VoyageEmbeddings class to use mock client
+    from integrations.providers.voyage import VoyageEmbeddings
+    original_init = VoyageEmbeddings.__init__
+    
+    def mock_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self._set_client_for_tests(_MockVoyageClient())
+    
+    monkeypatch.setattr(VoyageEmbeddings, "__init__", mock_init)
+    yield
+
+
+@pytest.fixture
+def fake_cohere_embeddings(monkeypatch):
+    """Mock Cohere client to avoid network calls."""
+    
+    class _MockCohereResponse:
+        def __init__(self, texts):
+            # Cohere-specific mock embeddings (different from others)  
+            self.embeddings = [[30.0 + float(i)] for i, _ in enumerate(texts)]
+    
+    class _MockCohereClient:
+        def __init__(self, api_key=None):
+            self.api_key = api_key
+        
+        def embed(self, texts, model, input_type=None, truncate=None):
+            return _MockCohereResponse(texts)
+    
+    # Patch the CohereEmbeddings class to use mock client
+    from integrations.providers.cohere import CohereEmbeddings
+    original_init = CohereEmbeddings.__init__
+    
+    def mock_init(self, *args, **kwargs):
+        original_init(self, *args, **kwargs)
+        self._set_client_for_tests(_MockCohereClient())
+    
+    monkeypatch.setattr(CohereEmbeddings, "__init__", mock_init)
+    yield

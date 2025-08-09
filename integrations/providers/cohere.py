@@ -4,9 +4,10 @@ import os
 import logging
 from typing import List, Optional, Literal
 from ..embeddings_interfaces import EmbeddingProvider
+from .provider_base import ProviderMixin
 
 
-class CohereEmbeddings:
+class CohereEmbeddings(ProviderMixin, EmbeddingProvider):
     """Cohere embeddings provider.
     
     Cohere offers multilingual embedding models with different sizes:
@@ -40,7 +41,7 @@ class CohereEmbeddings:
         self.api_key = api_key or os.getenv("COHERE_API_KEY")
         self.input_type = input_type
         self.truncate = truncate
-        self.client = None
+        # self._client will be set by ProviderMixin or _initialize_client
         self._available = False
         
         # Lazy initialization - will be called on first use
@@ -59,24 +60,33 @@ class CohereEmbeddings:
     
     def _initialize_client(self):
         """Initialize Cohere client with lazy import."""
-        if self.client is not None:
+        # Allow test injection first
+        if self._client is not None:
+            self._available = True
             return
             
         try:
             import cohere
             if not self.api_key:
                 raise ValueError("COHERE_API_KEY environment variable required")
-            self.client = cohere.Client(api_key=self.api_key)
+            self._client = cohere.Client(api_key=self.api_key)
             self._available = True
             logging.info(f"Cohere client initialized with model {self.model}")
         except ImportError:
             logging.warning("Cohere package not installed. Run: pip install cohere")
-            self.client = None
+            self._client = None
             self._available = False
         except Exception as e:
             logging.error(f"Failed to initialize Cohere client: {e}")
-            self.client = None
+            self._client = None
             self._available = False
+    
+    def _sdk_available(self) -> bool:
+        try:
+            import importlib
+            return importlib.util.find_spec("cohere") is not None
+        except Exception:
+            return False
     
     def embed(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings using Cohere.
@@ -87,7 +97,7 @@ class CohereEmbeddings:
         Returns:
             List of embedding vectors
         """
-        if not self._available or self.client is None:
+        if self._client is None:
             self._initialize_client()
             if not self._available:
                 raise RuntimeError(
@@ -99,7 +109,7 @@ class CohereEmbeddings:
             return []
             
         try:
-            response = self.client.embed(
+            response = self._client.embed(
                 texts=texts,
                 model=self.model,
                 input_type=self.input_type,

@@ -3,9 +3,10 @@
 import os
 from typing import List, Optional
 from ..embeddings_interfaces import EmbeddingProvider
+from .provider_base import ProviderMixin
 
 
-class VoyageEmbeddings(EmbeddingProvider):
+class VoyageEmbeddings(ProviderMixin, EmbeddingProvider):
     """Voyage AI embeddings provider.
     
     Voyage offers state-of-the-art embedding models optimized for retrieval.
@@ -43,13 +44,17 @@ class VoyageEmbeddings(EmbeddingProvider):
         self.input_type = input_type
         self.truncation = truncation
         
-        # Try to import and initialize client
+        # Allow test injection first
+        if self._client is not None:
+            self._available = True
+            return
+        # Lazy import so is_available() can work without raising
         try:
             import voyageai
-            self.client = voyageai.Client(api_key=self.api_key)
+            self._client = voyageai.Client(api_key=self.api_key)
             self._available = True
         except ImportError:
-            self.client = None
+            self._client = None
             self._available = False
         
         # Dimension mapping for different models
@@ -62,6 +67,13 @@ class VoyageEmbeddings(EmbeddingProvider):
             "voyage-multilingual-2": 1024,
         }
     
+    def _sdk_available(self) -> bool:
+        try:
+            import importlib
+            return importlib.util.find_spec("voyageai") is not None
+        except Exception:
+            return False
+    
     def embed(self, texts: List[str]) -> List[List[float]]:
         """Generate embeddings using Voyage AI.
         
@@ -71,16 +83,14 @@ class VoyageEmbeddings(EmbeddingProvider):
         Returns:
             List of embedding vectors
         """
-        if not self._available or not self.client:
-            raise RuntimeError(
-                "Voyage embeddings not available. Install voyageai package: pip install voyageai"
-            )
+        if self._client is None:
+            raise RuntimeError("VoyageEmbeddings not available (client missing). Did you install voyageai or inject a test client?")
         
         if not texts:
             return []
         
         try:
-            result = self.client.embed(
+            result = self._client.embed(
                 texts=texts,
                 model=self.model,
                 input_type=self.input_type,
