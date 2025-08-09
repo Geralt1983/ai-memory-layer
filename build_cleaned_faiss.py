@@ -8,7 +8,7 @@ import time
 from pathlib import Path
 sys.path.append('.')
 
-from core.embeddings import OpenAIEmbeddings
+from integrations.embeddings_factory import get_embedder
 from storage.faiss_store import FaissVectorStore
 
 def build_cleaned_index():
@@ -31,7 +31,8 @@ def build_cleaned_index():
     
     # Initialize components
     print("🔧 Initializing embeddings and vector store...")
-    embeddings = OpenAIEmbeddings()
+    # Use factory pattern for embedding provider
+    embeddings = get_embedder()
     vector_store = FaissVectorStore(embeddings, dimension=1536)
     
     # Process memories in batches

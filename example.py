@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 from core import MemoryEngine
 from storage import FaissVectorStore, ChromaVectorStore
 from integrations import OpenAIIntegration
-from integrations.embeddings import OpenAIEmbeddings
+from integrations.embeddings_factory import get_embedder
 
 # Load environment variables
 load_dotenv()
@@ -17,7 +17,8 @@ def main():
         return
 
     # Initialize embedding provider
-    embedding_provider = OpenAIEmbeddings(api_key, model="text-embedding-ada-002")
+    # Use factory pattern for embedding provider
+    embedding_provider = get_embedder()
 
     # Choose a vector store (Faiss or Chroma)
     # Option 1: Faiss (in-memory or persistent)
@@ -92,7 +93,8 @@ def interactive_mode():
         print("Please set OPENAI_API_KEY in your .env file")
         return
 
-    embedding_provider = OpenAIEmbeddings(api_key, model="text-embedding-ada-002")
+    # Use factory pattern for embedding provider
+    embedding_provider = get_embedder()
     vector_store = ChromaVectorStore(persist_directory="./data/chroma_db")
     memory_engine = MemoryEngine(
         vector_store=vector_store,

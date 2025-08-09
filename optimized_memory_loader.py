@@ -156,20 +156,20 @@ class OptimizedChatGPTLoader:
         try:
             from core.memory_engine import MemoryEngine, Memory
             from storage.faiss_store import FaissVectorStore
-            from integrations.embeddings import OpenAIEmbeddings
+            from integrations.embeddings_factory import get_embedder
             
             # Create vector store from pre-loaded FAISS index
             vector_store = FaissVectorStore(
-                dimension=1536,
-                index_path=None  # Don't auto-load, we'll set manually
+                index_path="data/temp_chatgpt_faiss.index"  # Temp path for metadata
             )
             
             # Set the pre-loaded index
             vector_store.index = self.faiss_index
             vector_store.memories = {}  # Initialize empty dict for consistency
             
-            # Create embedding provider
-            embedding_provider = OpenAIEmbeddings(api_key=self.openai_api_key)
+            # Create embedding provider using factory pattern
+            # API key is set via environment variable
+            embedding_provider = get_embedder()
             
             # Create memory engine
             self.memory_engine = MemoryEngine(

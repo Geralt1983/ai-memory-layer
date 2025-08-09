@@ -11,7 +11,7 @@ import random
 from datetime import datetime
 from core.memory_engine import Memory, MemoryEngine
 from core.logging_config import get_logger, monitor_performance
-from .embeddings import OpenAIEmbeddings
+from .embeddings_factory import get_embedder
 import os
 
 
@@ -29,7 +29,11 @@ class DirectOpenAIChat:
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self.memory_engine = memory_engine
-        self.embeddings = OpenAIEmbeddings(api_key, embedding_model)
+        # Use factory pattern for embedding provider
+        if embedding_model != "text-embedding-ada-002":
+            import os
+            os.environ["OPENAI_EMBED_MODEL"] = embedding_model
+        self.embeddings = get_embedder()
         self.logger = get_logger("direct_openai")
         self.system_prompt_path = system_prompt_path
         

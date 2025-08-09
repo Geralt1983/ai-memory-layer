@@ -32,6 +32,25 @@ class OpenAIEmbeddings(EmbeddingProvider):
 
         self.logger.info("OpenAI embeddings initialized", extra={"model": model})
 
+    def embed(self, texts: List[str]) -> List[List[float]]:
+        """Generate embeddings for multiple texts (Protocol method).
+        
+        Args:
+            texts: List of strings to embed
+            
+        Returns:
+            List of embedding vectors
+        """
+        if not texts:
+            return []
+        
+        try:
+            response = self.client.embeddings.create(input=texts, model=self.model)
+            return [data.embedding for data in response.data]
+        except Exception as e:
+            self.logger.error(f"Error generating embeddings: {e}")
+            raise
+
     @monitor_performance("embed_text")
     def embed_text(self, text: Union[str, List[str]]) -> np.ndarray:
         if isinstance(text, list):
@@ -76,6 +95,20 @@ class OpenAIEmbeddings(EmbeddingProvider):
                 exc_info=True,
             )
             raise
+    
+    def get_embedding_dimension(self) -> int:
+        """Get the dimension of embeddings produced by this provider.
+        
+        Returns:
+            Embedding dimension
+        """
+        # Model dimensions for OpenAI models
+        dimension_map = {
+            "text-embedding-ada-002": 1536,
+            "text-embedding-3-small": 1536,
+            "text-embedding-3-large": 3072,
+        }
+        return dimension_map.get(self.model, 1536)
 
     @monitor_performance("embed_batch")
     def embed_batch(self, texts: List[str]) -> List[np.ndarray]:

@@ -5,7 +5,7 @@ from core.memory_engine import Memory, MemoryEngine
 from core.context_builder import ContextBuilder
 from core.conversation_buffer import ConversationBuffer
 from core.logging_config import get_logger, monitor_performance
-from .embeddings import OpenAIEmbeddings
+from .embeddings_factory import get_embedder
 from langchain.memory import ConversationSummaryBufferMemory
 from langchain.schema import BaseMessage, HumanMessage, AIMessage
 from langchain.chat_models import ChatOpenAI
@@ -30,7 +30,12 @@ class OpenAIIntegration:
         self.client = OpenAI(api_key=api_key)
         self.model = model
         self.memory_engine = memory_engine
-        self.embeddings = OpenAIEmbeddings(api_key, embedding_model)
+        # Use factory pattern for embedding provider
+        # For backward compat, set model via env if different from default
+        if embedding_model != "text-embedding-ada-002":
+            import os
+            os.environ["OPENAI_EMBED_MODEL"] = embedding_model
+        self.embeddings = get_embedder()
         self.context_builder = ContextBuilder(memory_engine)
         
         # Initialize LangGraph conversation system (replaces deprecated ConversationChain)
