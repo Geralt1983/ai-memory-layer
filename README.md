@@ -48,6 +48,36 @@ pip install -r requirements.txt
 cp .env.example .env
 # Add your OPENAI_API_KEY to .env
 
+# CLI Quick Start (New in v1.15.9)
+export OPENAI_API_KEY=your_key_here  # or VOYAGE_API_KEY
+
+# Build an index from a folder
+python -m memory_layer.cli build --dir ./documents --provider openai
+
+# Search the index
+python -m memory_layer.cli search "your query here" --provider openai
+
+# Start HTTP server
+python -m memory_layer.server  # listens on localhost:8080
+```
+
+## HTTP Server API
+
+```bash
+# Build index via REST API
+curl -X POST localhost:8080/build -H 'Content-Type: application/json' \
+  -d '{"dir":"./samples"}'
+
+# Search with human-like re-ranking (semantic×temporal×salience)
+curl 'localhost:8080/search?q=code%20review&k=5'
+
+# List available providers
+curl 'localhost:8080/providers'
+
+# Health check
+curl 'localhost:8080/health'
+```
+
 # Run modular API (v1.3.0)
 python api/main.py
 
