@@ -3,15 +3,26 @@
 import os
 from fastapi import APIRouter, HTTPException
 from integrations.embeddings_factory import get_embedder, get_available_providers, get_embedder_for
+from integrations.ops.embeddings_health import check_embeddings_health
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
 
 @router.get("/embeddings/health")
 async def embeddings_health():
-    """Health check for the active embedding provider.
+    """Enhanced health check for embedding providers including A/B testing.
     
-    Returns the active provider and tests a basic embedding operation.
+    Returns detailed information about active and shadow providers,
+    their configurations, and basic statistics.
+    """
+    return check_embeddings_health()
+
+
+@router.get("/embeddings/health/legacy")  
+async def embeddings_health_legacy():
+    """Legacy health check for backwards compatibility.
+    
+    Returns the old simplified format for existing monitoring systems.
     """
     provider_name = os.getenv("EMBEDDING_PROVIDER", "openai")
     

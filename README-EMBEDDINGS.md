@@ -175,6 +175,26 @@ if hasattr(embedder, 'set_shadow_percentage'):
 - **Migration testing**: Validate new provider before switching
 - **Cost analysis**: Compare API costs and rate limits
 
+### Health Helper (Richer Output)
+Expose an internal endpoint that returns the active embedding status, including A/B:
+```python
+from integrations.ops.embeddings_health import check_embeddings_health
+
+@router.get("/internal/embeddings/health")
+def embeddings_health():
+    return check_embeddings_health()
+```
+Sample response (A/B):
+```json
+{
+  "ok": true,
+  "mode": "ab",
+  "provider_env": "openai",
+  "active": {"provider": "openai", "model": "text-embedding-3-small", "stats": {...}},
+  "shadow": {"provider": "voyage", "model": "voyage-3", "stats": {...}}
+}
+```
+
 ### Tag-Based Provider Routing
 
 Route different content types to different providers for optimal performance:
