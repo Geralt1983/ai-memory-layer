@@ -78,7 +78,14 @@ async def root():
 
 # Include endpoint routers
 from api.endpoints.internal import router as internal_router
+from api.endpoints.chat import router as chat_router
+from api.endpoints.memories import router as memories_router
+from api.endpoints.conversations import router as conversations_router
+
 app.include_router(internal_router)
+app.include_router(chat_router)
+app.include_router(memories_router)
+app.include_router(conversations_router)
 
 @app.get("/health")
 async def health(engine = Depends(get_memory_engine)):
