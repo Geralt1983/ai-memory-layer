@@ -32,7 +32,9 @@ def build_cleaned_index():
     # Initialize components
     print("🔧 Initializing embeddings and vector store...")
     # Use factory pattern for embedding provider
-    embeddings = get_embedder()
+    # Use source-specific routing for ChatGPT memories (obsidian tag)
+    from integrations.embeddings_factory import get_embedder_for
+    embeddings = get_embedder_for("obsidian")
     vector_store = FaissVectorStore(embeddings, dimension=1536)
     
     # Process memories in batches
