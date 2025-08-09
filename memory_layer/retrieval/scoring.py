@@ -1,7 +1,12 @@
 from __future__ import annotations
-import math, time
+import math, time, os
 from dataclasses import dataclass
 from typing import List, Optional
+
+# Configurable ranking weights via environment variables
+W_SEM = float(os.getenv("RANK_WEIGHT_SEMANTIC", "0.6"))
+W_TMP = float(os.getenv("RANK_WEIGHT_TEMPORAL", "0.25"))
+W_CTX = float(os.getenv("RANK_WEIGHT_CONTEXT", "0.15"))
 
 @dataclass
 class ScoredMemory:
@@ -98,11 +103,11 @@ def blend(semantic: float, days_old: float, tags: int = 0, thread_len: int = 1) 
     # Thread length boost: longer conversations often have more context
     thread_factor = 1.0 + (0.1 * math.log(max(1, thread_len)))
     
-    # Combine with weighted importance:
-    # - Semantic similarity: 60% base weight
-    # - Temporal relevance: 25% weight
-    # - Salience: 15% weight (multiplicative boost)
-    base_score = (0.6 * semantic) + (0.25 * temporal_factor) + (0.15 * min(1.0, thread_factor))
+    # Combine with weighted importance (configurable via environment):
+    # - Semantic similarity: W_SEM weight (default 60%)
+    # - Temporal relevance: W_TMP weight (default 25%) 
+    # - Context: W_CTX weight (default 15%)
+    base_score = (W_SEM * semantic) + (W_TMP * temporal_factor) + (W_CTX * min(1.0, thread_factor))
     
     # Apply salience as multiplicative factor
     final_score = base_score * salience_factor

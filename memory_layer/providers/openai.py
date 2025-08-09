@@ -44,9 +44,11 @@ class OpenAIEmbeddings(EmbeddingProvider):
                 tries += 1
                 try:
                     resp = self.session.post(_EMBED_URL, json=payload, timeout=self.cfg.timeout_s)
-                    # Basic retry on 5xx or 429
+                    # Basic retry on 5xx or 429 with jitter
                     if resp.status_code in (429, 500, 502, 503, 504) and tries < self.cfg.max_retries:
-                        time.sleep(min(1.0 * tries, 5.0))
+                        import random
+                        jitter = random.uniform(0.1, 0.5)
+                        time.sleep(min(1.0 * tries + jitter, 5.0))
                         continue
                     resp.raise_for_status()
                     vecs = [r["embedding"] for r in resp.json()["data"]]
@@ -55,7 +57,9 @@ class OpenAIEmbeddings(EmbeddingProvider):
                 except requests.Timeout as e:
                     if tries >= self.cfg.max_retries:
                         raise EmbeddingError(f"openai timeout after {tries} tries") from e
-                    time.sleep(0.5 * tries)
+                    import random
+                    jitter = random.uniform(0.1, 0.3)
+                    time.sleep(0.5 * tries + jitter)
                 except requests.RequestException as e:
                     raise EmbeddingError(f"openai error: {e}") from e
         if self.cfg.normalize:

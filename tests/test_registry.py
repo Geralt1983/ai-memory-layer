@@ -80,6 +80,25 @@ class TestProviderRegistry:
         provider2 = build_provider(app_cfg)
         assert isinstance(provider2, TestMockProvider)
     
+    def test_duplicate_registration_error(self):
+        """Test that duplicate provider registration raises error."""
+        
+        @register("unique-test-1")
+        class FirstProvider(EmbeddingProvider):
+            def is_available(self) -> bool:
+                return True
+            def embed_batch(self, texts: Sequence[str]) -> List[List[float]]:
+                return [[1.0] for _ in texts]
+        
+        # Second registration with same name should fail
+        with pytest.raises(ValueError, match="Provider 'unique-test-1' already registered"):
+            @register("unique-test-1")
+            class SecondProvider(EmbeddingProvider):
+                def is_available(self) -> bool:
+                    return True
+                def embed_batch(self, texts: Sequence[str]) -> List[List[float]]:
+                    return [[2.0] for _ in texts]
+    
     def test_list_providers_sorted(self):
         """Test that provider list is sorted."""
         providers = preg.list_providers()

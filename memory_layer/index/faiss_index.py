@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os, json, hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from typing import List, Tuple
 import faiss
 import numpy as np
@@ -13,11 +13,7 @@ class IndexSpec:
     model: str
     dim: int
     normalize: bool
-    metric: str = "IP"  # use inner product for normalized vectors
-
-def _meta_digest(spec: IndexSpec, corpus_hashes: List[str]) -> str:
-    payload = {"spec": spec.__dict__, "corpus": corpus_hashes}
-    return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+    metric: str = "IP"  # "IP" or "L2"
 
 class FAISSIndex:
     def __init__(self, path: str, spec: IndexSpec):
@@ -25,27 +21,34 @@ class FAISSIndex:
         self.spec = spec
 
     def _metric(self):
-        return faiss.METRIC_INNER_PRODUCT if self.spec.metric == "IP" else faiss.METRIC_L2
+        return faiss.METRIC_INNER_PRODUCT if self.spec.metric.upper() == "IP" else faiss.METRIC_L2
+
+    def _digest(self, vectors: np.ndarray) -> str:
+        h = hashlib.sha256()
+        h.update(vectors.astype("float32").tobytes())
+        h.update(json.dumps(asdict(self.spec), sort_keys=True).encode("utf-8"))
+        return h.hexdigest()
 
     def load_or_build(self, vectors: np.ndarray, ids: List[str]) -> faiss.Index:
         os.makedirs(os.path.dirname(self.path), exist_ok=True)
         meta_path = os.path.join(os.path.dirname(self.path), META_FILE)
-        digest = _meta_digest(self.spec, ids)
-        # Fast path: load if index + meta exist and digest matches
+        digest = self._digest(vectors)
         if os.path.exists(self.path) and os.path.exists(meta_path):
             try:
-                with open(meta_path, "r") as f:
-                    meta = json.load(f)
+                meta = json.loads(open(meta_path, "r", encoding="utf-8").read())
                 if meta.get("digest") == digest:
                     return faiss.read_index(self.path)
             except Exception:
                 pass
-        # Build
-        index = faiss.IndexFlatIP(self.spec.dim) if self._metric()==faiss.METRIC_INNER_PRODUCT else faiss.IndexFlatL2(self.spec.dim)
+        # Build flat index
+        if self._metric() == faiss.METRIC_INNER_PRODUCT:
+            index = faiss.IndexFlatIP(self.spec.dim)
+        else:
+            index = faiss.IndexFlatL2(self.spec.dim)
         index.add(vectors.astype("float32"))
         faiss.write_index(index, self.path)
-        with open(meta_path, "w") as f:
-            json.dump({"digest": digest, "count": int(index.ntotal), "spec": self.spec.__dict__}, f)
+        with open(meta_path, "w", encoding="utf-8") as f:
+            json.dump({"digest": digest, "count": int(index.ntotal), "spec": asdict(self.spec)}, f)
         return index
 
     @staticmethod

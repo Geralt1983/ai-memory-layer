@@ -31,8 +31,11 @@ class VoyageEmbeddings(EmbeddingProvider):
                 tries += 1
                 try:
                     resp = self.session.post(VOYAGE_URL, json=payload, timeout=self.cfg.timeout_s)
+                    # Retry on 5xx with jitter
                     if resp.status_code >= 500 and tries < self.cfg.max_retries:
-                        time.sleep(0.5 * tries)
+                        import random
+                        jitter = random.uniform(0.1, 0.5)
+                        time.sleep(0.5 * tries + jitter)
                         continue
                     resp.raise_for_status()
                     vecs = [r["embedding"] for r in resp.json()["data"]]
@@ -41,7 +44,9 @@ class VoyageEmbeddings(EmbeddingProvider):
                 except requests.Timeout as e:
                     if tries >= self.cfg.max_retries:
                         raise EmbeddingError(f"voyage timeout after {tries} tries") from e
-                    time.sleep(0.5 * tries)
+                    import random
+                    jitter = random.uniform(0.1, 0.3)
+                    time.sleep(0.5 * tries + jitter)
                 except requests.RequestException as e:
                     raise EmbeddingError(f"voyage error: {e}") from e
         if self.cfg.normalize:

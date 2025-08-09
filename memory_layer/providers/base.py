@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Protocol
+from typing import List, Sequence
 
 class EmbeddingError(RuntimeError): ...
 class ProviderUnavailable(RuntimeError): ...
@@ -23,11 +23,11 @@ class EmbeddingProvider(ABC):
 
     @abstractmethod
     def is_available(self) -> bool:
-        """Cheap local check (env/config present). Can optionally do a 0-cost remote ping."""
+        """Cheap local check (env/config present). Optionally a zero-cost remote ping."""
 
     @abstractmethod
     def embed_batch(self, texts: Sequence[str]) -> List[List[float]]:
-        """Return len(texts) vectors. Must respect cfg.max_batch_size and cfg.timeout_s."""
+        """Return len(texts) vectors. Must respect cfg.max_batch_size/cfg.timeout_s."""
 
     def embed_query(self, text: str) -> List[float]:
         return self.embed_batch([text])[0]
