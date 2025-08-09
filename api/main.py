@@ -76,6 +76,10 @@ async def root():
     html_content = html_content.replace("const API_BASE = 'http://localhost:8000';", "const API_BASE = window.location.origin;")
     return html_content
 
+# Include endpoint routers
+from api.endpoints.internal import router as internal_router
+app.include_router(internal_router)
+
 @app.get("/health")
 async def health(engine = Depends(get_memory_engine)):
     return {
