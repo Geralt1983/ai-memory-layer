@@ -1,0 +1,100 @@
+name: AI Code Review
+
+on:
+  pull_request:
+    branches: [main, clean-main]
+  push:
+    branches: [main, clean-main]
+
+jobs:
+  serena-review:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install anthropic pyyaml
+
+      - name: Run Serena AI Review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python .ai-review/run_review.py \
+            --pr-number ${{ github.event.number }} \
+            --base-branch ${{ github.base_ref }} \
+            --head-branch ${{ github.head_ref }} \
+            --rubric-path .ai-review/rubric.yml
+
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e ".[dev]"
+          
+      - name: Run linters
+        run: |
+          black --check .
+          flake8 .
+          mypy .
+          
+      - name: Run tests
+        run: |
+          pytest tests/ -v --cov=core --cov=integrations --cov=memory_layer
+          
+      - name: List providers
+        run: python -c "from memory_layer.providers.registry import list_providers; print('Providers:', list_providers())"
+          
+      - name: Build tiny index (if keys present)
+        run: |
+          mkdir -p samples
+          echo "serena improves code review" > samples/a.txt
+          echo "faiss index reuse is fast" > samples/b.txt
+          python -m memory_layer.cli build --dir samples --out .index --provider ${EMBED_PROVIDER:-voyage} --model ${EMBED_MODEL:-voyage-2} --dim ${EMBED_DIM:-1536} || true
+        
+      - name: Query tiny index
+        run: |
+          python -m memory_layer.cli search --out .index --provider ${EMBED_PROVIDER:-voyage} --model ${EMBED_MODEL:-voyage-2} --dim ${EMBED_DIM:-1536} "code review" || true
+          
+      - name: Server smoke (if keys present)
+        env:
+          MEM_INDEX_DIR: .index
+        run: |
+          if [[ -n "${VOYAGE_API_KEY}${OPENAI_API_KEY}" ]]; then
+            python -m memory_layer.server & sleep 2
+            curl -s -X POST localhost:8080/build -H 'content-type: application/json' -d '{"dir":"samples"}' || true
+            curl -s 'localhost:8080/search?q=review&k=2' || true
+            curl -s 'localhost:8080/providers' || true
+            curl -s 'localhost:8080/health' || true
+          fi
+          
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        if: matrix.python-version == '3.11'

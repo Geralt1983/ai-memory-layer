@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Memory Layer - Chat Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .chat-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            width: 90%;
+            max-width: 800px;
+            height: 80vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .memory-stats {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 13px;
+            color: #6c757d;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+        
+        .message {
+            margin-bottom: 20px;
+            display: flex;
+            align-items: flex-start;
+        }
+        
+        .message.user {
+            justify-content: flex-end;
+        }
+        
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            line-height: 1.4;
+        }
+        
+        .message.user .message-content {
+            background: #667eea;
+            color: white;
+        }
+        
+        .message.assistant .message-content {
+            background: white;
+            border: 1px solid #e9ecef;
+            color: #333;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 4px;
+        }
+        
+        .input-area {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e9ecef;
+            border-radius: 25px;
+            outline: none;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+        
+        .message-input:focus {
+            border-color: #667eea;
+        }
+        
+        .send-button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+        
+        .send-button:hover {
+            background: #5a6fd8;
+        }
+        
+        .send-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 16px;
+            background: white;
+            border: 1px solid #e9ecef;
+            border-radius: 18px;
+            max-width: 70%;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #667eea;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+        
+        .controls {
+            padding: 15px 20px;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .control-button {
+            background: white;
+            border: 1px solid #dee2e6;
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+        
+        .control-button:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #28a745;
+            display: inline-block;
+            margin-right: 6px;
+        }
+        
+        .status-indicator.offline {
+            background: #dc3545;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="header">
+            <h1>🧠 AI Memory Layer</h1>
+            <p>Chat with AI that remembers your conversations</p>
+        </div>
+        
+        <div class="memory-stats">
+            <div>
+                <span class="status-indicator" id="status-indicator"></span>
+                <span id="connection-status">Connecting...</span>
+            </div>
+            <div id="memory-count">Memories: 0</div>
+        </div>
+        
+        <div class="chat-messages" id="messages">
+            <div class="message assistant">
+                <div class="message-content">
+                    <div>👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                    <div class="message-time">Just now</div>
+                </div>
+            </div>
+            <div class="message assistant">
+                <div class="message-content">
+                    <div>Try asking me something, and I'll remember it for future conversations!</div>
+                    <div class="message-time">Just now</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="typing-indicator" id="typing">
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <div class="typing-dot"></div>
+            <span style="margin-left: 8px; font-size: 12px; color: #666;">AI is thinking...</span>
+        </div>
+        
+        <div class="controls">
+            <button class="control-button" onclick="searchMemories()">🔍 Search Memories</button>
+            <button class="control-button" onclick="showMemoryStats()">📊 Memory Stats</button>
+            <button class="control-button" onclick="clearConversation()">🗑️ Clear Chat</button>
+            <button class="control-button" onclick="exportMemories()">💾 Export Memories</button>
+        </div>
+        
+        <div class="input-area">
+            <div class="input-group">
+                <input 
+                    type="text" 
+                    class="message-input" 
+                    id="messageInput" 
+                    placeholder="Type your message here..."
+                    onkeypress="handleKeyPress(event)"
+                >
+                <button class="send-button" id="sendButton" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let isConnected = false;
+        
+        // Initialize the interface
+        async function init() {
+            await checkConnection();
+            await updateMemoryCount();
+            document.getElementById('messageInput').focus();
+        }
+        
+        // Check API connection
+        async function checkConnection() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                isConnected = response.ok;
+                
+                const statusIndicator = document.getElementById('status-indicator');
+                const statusText = document.getElementById('connection-status');
+                
+                if (isConnected) {
+                    statusIndicator.className = 'status-indicator';
+                    statusText.textContent = `Connected (${data.vector_store_type})`;
+                } else {
+                    statusIndicator.className = 'status-indicator offline';
+                    statusText.textContent = 'API Error';
+                }
+            } catch (error) {
+                isConnected = false;
+                document.getElementById('status-indicator').className = 'status-indicator offline';
+                document.getElementById('connection-status').textContent = 'API Offline';
+            }
+        }
+        
+        // Update memory count
+        async function updateMemoryCount() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/memories/stats`);
+                const data = await response.json();
+                document.getElementById('memory-count').textContent = `Memories: ${data.total_memories}`;
+            } catch (error) {
+                console.error('Failed to fetch memory count:', error);
+            }
+        }
+        
+        // Handle key press
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+        
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message || !isConnected) return;
+            
+            // Add user message to chat
+            addMessage('user', message);
+            input.value = '';
+            
+            // Show typing indicator
+            showTyping(true);
+            
+            // Disable send button
+            const sendButton = document.getElementById('sendButton');
+            sendButton.disabled = true;
+            sendButton.textContent = 'Sending...';
+            
+            try {
+                // Send to API
+                const response = await fetch(`${API_BASE}/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        include_recent: 5,
+                        include_relevant: 3,
+                        remember_response: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Add assistant response
+                addMessage('assistant', data.response);
+                
+                // Update memory count
+                await updateMemoryCount();
+                
+            } catch (error) {
+                console.error('Error sending message:', error);
+                addMessage('assistant', '❌ Sorry, I encountered an error. Please check if the API server is running.');
+            }
+            
+            // Re-enable send button
+            showTyping(false);
+            sendButton.disabled = false;
+            sendButton.textContent = 'Send';
+            input.focus();
+        }
+        
+        // Add message to chat
+        function addMessage(sender, content) {
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div>${content}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Show/hide typing indicator
+        function showTyping(show) {
+            const typing = document.getElementById('typing');
+            const messages = document.getElementById('messages');
+            
+            if (show) {
+                typing.style.display = 'flex';
+                messages.appendChild(typing);
+                messages.scrollTop = messages.scrollHeight;
+            } else {
+                typing.style.display = 'none';
+            }
+        }
+        
+        // Search memories
+        async function searchMemories() {
+            if (!isConnected) return;
+            
+            const query = prompt('What would you like to search for?');
+            if (!query) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/memories/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        k: 5
+                    })
+                });
+                
+                const data = await response.json();
+                let results = `🔍 Search results for "${query}":\n\n`;
+                
+                if (data.memories.length === 0) {
+                    results += 'No memories found.';
+                } else {
+                    data.memories.forEach((memory, index) => {
+                        results += `${index + 1}. ${memory.content} (${(memory.relevance_score * 100).toFixed(1)}% match)\n\n`;
+                    });
+                }
+                
+                addMessage('assistant', results);
+                
+            } catch (error) {
+                addMessage('assistant', '❌ Error searching memories.');
+            }
+        }
+        
+        // Show memory stats
+        async function showMemoryStats() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/memories/stats`);
+                const data = await response.json();
+                
+                const stats = `📊 Memory Statistics:
+                
+Total memories: ${data.total_memories}
+Average length: ${data.average_content_length.toFixed(1)} characters
+Total content: ${data.total_content_length} characters
+
+Memory types:
+${Object.entries(data.memory_types).map(([type, count]) => `• ${type}: ${count}`).join('\n')}`;
+                
+                addMessage('assistant', stats);
+                
+            } catch (error) {
+                addMessage('assistant', '❌ Error fetching memory stats.');
+            }
+        }
+        
+        // Clear conversation
+        function clearConversation() {
+            if (confirm('Clear this conversation? (Memories will be preserved)')) {
+                const messages = document.getElementById('messages');
+                messages.innerHTML = `
+                    <div class="message assistant">
+                        <div class="message-content">
+                            <div>Conversation cleared. Your memories are still preserved!</div>
+                            <div class="message-time">Just now</div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        // Export memories
+        async function exportMemories() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/memories/export`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        format: 'json'
+                    })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `memories_export_${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    addMessage('assistant', '💾 Memories exported successfully!');
+                } else {
+                    addMessage('assistant', '❌ Error exporting memories.');
+                }
+                
+            } catch (error) {
+                addMessage('assistant', '❌ Error exporting memories.');
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', init);
+        
+        // Check connection periodically
+        setInterval(checkConnection, 30000);
+    </script>
+</body>
+</html>

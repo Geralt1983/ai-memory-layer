@@ -5,7 +5,7 @@ from typing import List, Optional
 from ..embeddings_interfaces import EmbeddingProvider
 
 
-class VoyageEmbeddings:
+class VoyageEmbeddings(EmbeddingProvider):
     """Voyage AI embeddings provider.
     
     Voyage offers state-of-the-art embedding models optimized for retrieval.
@@ -43,9 +43,14 @@ class VoyageEmbeddings:
         self.input_type = input_type
         self.truncation = truncation
         
-        # TODO: Uncomment when voyage-ai is installed
-        # import voyageai
-        # self.client = voyageai.Client(api_key=self.api_key)
+        # Try to import and initialize client
+        try:
+            import voyageai
+            self.client = voyageai.Client(api_key=self.api_key)
+            self._available = True
+        except ImportError:
+            self.client = None
+            self._available = False
         
         # Dimension mapping for different models
         self.dimension_map = {
@@ -66,19 +71,24 @@ class VoyageEmbeddings:
         Returns:
             List of embedding vectors
         """
-        # TODO: Implement when voyageai package is available
-        # result = self.client.embed(
-        #     texts=texts,
-        #     model=self.model,
-        #     input_type=self.input_type,
-        #     truncation=self.truncation
-        # )
-        # return result.embeddings
+        if not self._available or not self.client:
+            raise RuntimeError(
+                "Voyage embeddings not available. Install voyageai package: pip install voyageai"
+            )
         
-        raise NotImplementedError(
-            "Voyage embeddings not yet implemented. "
-            "Install voyageai package and uncomment implementation."
-        )
+        if not texts:
+            return []
+        
+        try:
+            result = self.client.embed(
+                texts=texts,
+                model=self.model,
+                input_type=self.input_type,
+                truncation=self.truncation
+            )
+            return list(result.embeddings)
+        except Exception as e:
+            raise RuntimeError(f"Voyage embedding generation failed: {e}") from e
     
     def embed_text(self, text: str) -> Optional[List[float]]:
         """Generate embedding for single text.

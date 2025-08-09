@@ -1,0 +1,296 @@
+name: Test Embedding Providers
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'integrations/embeddings*.py'
+      - 'integrations/providers/**'
+      - 'tests/test_embeddings*.py'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'integrations/embeddings*.py'
+      - 'integrations/providers/**'
+      - 'tests/test_embeddings*.py'
+
+jobs:
+  test-embedding-contract:
+    name: Test Embedding Contract & Order
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+        provider: ['openai', 'fallback']
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov pytest-mock
+      
+      - name: Run Embedding Contract Tests
+        env:
+          EMBEDDING_PROVIDER: ${{ matrix.provider }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_EMBED_MODEL: text-embedding-ada-002
+        run: |
+          # Test that contract is maintained (order, count, dimensions)
+          pytest tests/test_embeddings_contract.py -v --tb=short
+          
+          # Smoke test with mock
+          python -c "
+          from integrations.embeddings_factory import get_embedder
+          from unittest.mock import Mock, patch
+          
+          # Verify factory creates correct provider
+          import os
+          assert os.environ['EMBEDDING_PROVIDER'] == '${{ matrix.provider }}'
+          
+          with patch('integrations.embeddings.openai.OpenAI') as mock:
+              embedder = get_embedder()
+              print(f'✅ Provider: {embedder.__class__.__name__}')
+              print(f'✅ Dimension: {embedder.get_embedding_dimension()}')
+          "
+      
+      - name: Test Fallback Functionality
+        if: matrix.provider == 'fallback'
+        env:
+          EMBEDDING_PROVIDER: fallback
+          EMBEDDING_PRIMARY_PROVIDER: openai
+          EMBEDDING_FALLBACK_PROVIDER: openai  # Use OpenAI as both for testing
+        run: |
+          pytest tests/test_embeddings_fallback.py -v --tb=short
+      
+      - name: Verify No Regression
+        run: |
+          # Check that embed() returns same count as input
+          python -c "
+          from integrations.embeddings_factory import get_embedder
+          from unittest.mock import Mock, patch
+          
+          with patch('integrations.embeddings.openai.OpenAI') as mock_openai:
+              mock_client = Mock()
+              mock_openai.return_value = mock_client
+              
+              # Mock response preserving order
+              mock_response = Mock()
+              mock_response.data = [
+                  Mock(embedding=[float(i)] * 1536)
+                  for i in range(5)
+              ]
+              mock_client.embeddings.create.return_value = mock_response
+              
+              embedder = get_embedder()
+              inputs = ['text1', 'text2', 'text3', 'text4', 'text5']
+              outputs = embedder.embed(inputs)
+              
+              assert len(outputs) == len(inputs), f'Count mismatch: {len(outputs)} != {len(inputs)}'
+              assert all(len(v) == 1536 for v in outputs), 'Dimension mismatch'
+              
+              # Verify order preserved
+              for i, vec in enumerate(outputs):
+                  assert vec[0] == float(i), f'Order not preserved at index {i}'
+              
+              print('✅ Contract verified: count, order, dimensions preserved')
+          "
+
+  gpt5-review:
+    name: GPT-5 Code Review
+    runs-on: ubuntu-latest
+    needs: test-embedding-contract
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Get full history for diff
+      
+      - name: Get Changed Files
+        id: changed-files
+        run: |
+          echo "files<<EOF" >> $GITHUB_OUTPUT
+          git diff --name-only origin/${{ github.base_ref }}..HEAD | grep -E '\.(py|md)$' >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+      
+      - name: Generate Review Prompt
+        id: review-prompt
+        run: |
+          cat > review_prompt.md << 'EOF'
+          # Code Review Request for Embedding Provider Changes
+          
+          ## Changed Files:
+          ${{ steps.changed-files.outputs.files }}
+          
+          ## Review Checklist with Symbol References:
+          
+          Please review the changes and provide feedback using exact symbol references (file paths and function names):
+          
+          ### 1. Contract Compliance
+          - [ ] `integrations/embeddings.py::OpenAIEmbeddings.embed()` - Returns List[List[float]]
+          - [ ] `integrations/embeddings.py::OpenAIEmbeddings.embed_text()` - Returns Optional[List[float]]
+          - [ ] `integrations/embeddings.py::OpenAIEmbeddings.get_embedding_dimension()` - Returns int
+          - [ ] `integrations/embeddings_interfaces.py::EmbeddingProvider` - Protocol properly defined
+          
+          ### 2. Factory Pattern
+          - [ ] `integrations/embeddings_factory.py::get_embedder()` - Returns correct provider
+          - [ ] `integrations/embeddings_factory.py::_create_provider()` - Handles all providers
+          - [ ] Environment variables properly read in factory
+          
+          ### 3. Backward Compatibility
+          - [ ] `example.py` - Uses factory without breaking changes
+          - [ ] `integrations/openai_integration.py::OpenAIIntegration.__init__()` - Preserves custom models
+          - [ ] `integrations/direct_openai.py::DirectOpenAI.__init__()` - Preserves custom models
+          - [ ] `optimized_memory_loader.py::OptimizedMemoryLoader.create_memory_engine()` - Uses factory
+          
+          ### 4. Fallback Provider
+          - [ ] `integrations/providers/fallback.py::FallbackEmbeddings.embed()` - Proper error handling
+          - [ ] `integrations/providers/fallback.py::FallbackEmbeddings.get_stats()` - Tracking works
+          - [ ] `integrations/providers/fallback.py::MultiProviderFallback` - Chain works correctly
+          
+          ### 5. Tests
+          - [ ] `tests/test_embeddings_contract.py::TestEmbeddingContract` - All tests pass
+          - [ ] `tests/test_embeddings_fallback.py::TestFallbackEmbeddings` - Fallback tested
+          - [ ] Mock usage doesn't hide real issues
+          
+          ### 6. Documentation
+          - [ ] `README-EMBEDDINGS.md` - Accurate and complete
+          - [ ] Environment variables documented
+          - [ ] Migration guide included
+          
+          ## Serena Auto-Apply Instructions:
+          
+          For each issue found, provide:
+          1. **Symbol**: `file_path::ClassName.method_name` or `file_path::function_name`
+          2. **Issue**: Brief description
+          3. **Fix**: Exact code to apply
+          4. **Safety**: SAFE|RISKY (SAFE = no behavior change, RISKY = needs human review)
+          
+          Example:
+          ```
+          Symbol: integrations/embeddings.py::OpenAIEmbeddings.embed
+          Issue: Missing error handling for empty input
+          Fix: Add "if not texts: return []" at line 45
+          Safety: SAFE
+          ```
+          EOF
+          
+          echo "Generated review prompt"
+      
+      - name: Run GPT-5 Review (Simulated)
+        run: |
+          # In production, this would call GPT-5 API
+          # For now, run static analysis
+          
+          echo "## Automated Review Results" > review_results.md
+          
+          # Check for common issues
+          python -c "
+          import ast
+          import os
+          
+          issues = []
+          
+          # Check OpenAIEmbeddings implements all Protocol methods
+          with open('integrations/embeddings.py') as f:
+              tree = ast.parse(f.read())
+              methods = [node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)]
+              
+              required = ['embed', 'embed_text', 'get_embedding_dimension']
+              for method in required:
+                  if method in methods:
+                      print(f'✅ integrations/embeddings.py::OpenAIEmbeddings.{method} - Found')
+                  else:
+                      issues.append(f'❌ integrations/embeddings.py::OpenAIEmbeddings.{method} - Missing')
+          
+          # Check factory returns correct type
+          with open('integrations/embeddings_factory.py') as f:
+              content = f.read()
+              if 'return OpenAIEmbeddings' in content:
+                  print('✅ integrations/embeddings_factory.py::get_embedder - Returns provider')
+              else:
+                  issues.append('❌ integrations/embeddings_factory.py::get_embedder - Check return type')
+          
+          if issues:
+              print('\\n## Issues Found:')
+              for issue in issues:
+                  print(issue)
+          else:
+              print('\\n✅ All automated checks passed!')
+          " >> review_results.md
+      
+      - name: Post Review Comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            const review = fs.readFileSync('review_results.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: review
+            });
+
+  integration-test:
+    name: Integration Test
+    runs-on: ubuntu-latest
+    needs: test-embedding-contract
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Integration Test with Real API
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          EMBEDDING_PROVIDER: openai
+        run: |
+          # Only run on main branch with real API key
+          python -c "
+          from integrations.embeddings_factory import get_embedder
+          import os
+          
+          if os.environ.get('OPENAI_API_KEY', '').startswith('sk-'):
+              embedder = get_embedder()
+              
+              # Test real embedding
+              texts = ['Hello world', 'Testing embeddings', 'Factory pattern works']
+              vectors = embedder.embed(texts)
+              
+              assert len(vectors) == 3, 'Should return 3 vectors'
+              assert all(len(v) == 1536 for v in vectors), 'Should be 1536 dimensions'
+              assert vectors[0] != vectors[1], 'Vectors should be different'
+              
+              print('✅ Real API integration test passed')
+          else:
+              print('⚠️ Skipping real API test (no valid key)')
+          "

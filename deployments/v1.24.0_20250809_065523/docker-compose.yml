@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  ai-memory-api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-3.5-turbo}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-ada-002}
+      - VECTOR_STORE_TYPE=${VECTOR_STORE_TYPE:-faiss}
+      - PERSIST_DIRECTORY=/app/data
+      - MEMORY_PERSIST_PATH=/app/data/memories.json
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: Add a simple frontend or proxy
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #   depends_on:
+  #     - ai-memory-api
+
+networks:
+  default:
+    name: ai-memory-network

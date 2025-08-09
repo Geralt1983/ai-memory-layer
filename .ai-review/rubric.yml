@@ -1,0 +1,51 @@
+version: "1.0"
+name: "AI Memory Layer Code Review"
+description: "Serena review criteria for embedding and memory systems"
+
+criteria:
+  architecture:
+    weight: 30
+    description: "Evaluate system design and component interaction"
+    checks:
+      - "Provider contract compliance (is_available, embed_batch, error handling)"
+      - "Proper separation of concerns (cache, index, scoring, providers)"
+      - "Configuration and dependency injection patterns"
+      - "Error handling and timeout management"
+
+  performance:
+    weight: 25
+    description: "Assess performance optimization and efficiency"
+    checks:
+      - "Embedding cache usage to prevent re-computation"
+      - "FAISS index metadata checksums for instant loading"
+      - "Batch processing and concurrent execution patterns"
+      - "Memory usage and resource management"
+
+  reliability:
+    weight: 25
+    description: "Check error handling and fault tolerance"  
+    checks:
+      - "Graceful degradation when providers unavailable"
+      - "Retry logic with exponential backoff"
+      - "Proper exception handling and error propagation"
+      - "A/B testing fallback mechanisms"
+
+  testing:
+    weight: 20
+    description: "Validate test coverage and quality"
+    checks:
+      - "Contract tests for all providers"
+      - "Unit tests for core functionality"
+      - "Integration tests for end-to-end flows"
+      - "Property-based testing for edge cases"
+
+scoring:
+  excellent: 90-100
+  good: 80-89
+  needs_improvement: 60-79
+  poor: 0-59
+
+thresholds:
+  pass: 75
+  warn: 60
+  fail: 40

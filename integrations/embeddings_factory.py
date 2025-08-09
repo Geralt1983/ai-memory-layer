@@ -140,6 +140,59 @@ def _create_provider(provider: str, config: Optional[Dict[str, Any]] = None) -> 
         )
 
 
+def _parse_routing(raw: str) -> Dict[str, str]:
+    """Parse EMBED_ROUTING string into tag -> provider mapping.
+    
+    Format: "obsidian:openai,commits:voyage,default:openai"
+    """
+    mapping = {}
+    if not raw:
+        return mapping
+    
+    for pair in raw.split(","):
+        if ":" not in pair:
+            continue
+        tag, provider = pair.split(":", 1)
+        mapping[tag.strip().lower()] = provider.strip().lower()
+    
+    return mapping
+
+
+def get_embedder_for(source_tag: Optional[str] = None) -> EmbeddingProvider:
+    """Get embedder for specific source tag with routing support.
+    
+    Args:
+        source_tag: Source context tag (e.g., 'obsidian', 'commits', 'docs')
+        
+    Returns:
+        Configured EmbeddingProvider instance
+        
+    Environment Variables:
+        EMBED_ROUTING: Tag-based routing rules 
+                      Format: "obsidian:openai,commits:voyage,default:openai"
+    
+    Examples:
+        # Use OpenAI for Obsidian notes, Voyage for commits, fallback for others
+        EMBED_ROUTING="obsidian:openai,commits:voyage,default:fallback"
+        
+        get_embedder_for("obsidian")  # -> OpenAI
+        get_embedder_for("commits")   # -> Voyage  
+        get_embedder_for("emails")    # -> Fallback (default)
+    """
+    routing = _parse_routing(os.getenv("EMBED_ROUTING", ""))
+    if not routing:
+        return get_embedder()  # No routing configured, use standard factory
+    
+    tag = (source_tag or "").lower()
+    provider = routing.get(tag) or routing.get("default")
+    
+    if not provider:
+        return get_embedder()  # No route found, use standard factory
+        
+    # Use internal factory with specific provider
+    return _create_provider(provider)
+
+
 def get_available_providers() -> Dict[str, bool]:
     """Check which embedding providers are available.
     

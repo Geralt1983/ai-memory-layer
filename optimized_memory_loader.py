@@ -167,9 +167,10 @@ class OptimizedChatGPTLoader:
             vector_store.index = self.faiss_index
             vector_store.memories = {}  # Initialize empty dict for consistency
             
-            # Create embedding provider using factory pattern
-            # API key is set via environment variable
-            embedding_provider = get_embedder()
+            # Create embedding provider using factory pattern with source-specific routing
+            # ChatGPT conversations use "obsidian" tag for optimal routing
+            from integrations.embeddings_factory import get_embedder_for
+            embedding_provider = get_embedder_for("obsidian")
             
             # Create memory engine
             self.memory_engine = MemoryEngine(
