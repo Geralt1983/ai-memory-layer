@@ -1,0 +1,21 @@
+# GitHub → ChatGPT Webhook Sync Requirements
+# Install with: pip install -r webhook_requirements.txt
+
+# Web framework for webhook receiver
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# HTTP client for GitHub API calls
+requests>=2.31.0
+
+# Background task processing
+python-multipart>=0.0.6
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Optional: Enhanced logging
+structlog>=23.1.0
+
+# Optional: Webhook signature validation
+cryptography>=41.0.0
