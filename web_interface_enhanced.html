@@ -221,6 +221,12 @@
             flex-shrink: 0;
         }
 
+        .message-avatar img {
+            width: 20px;
+            height: 20px;
+            filter: invert(1);
+        }
+
         .message.user .message-avatar {
             background: var(--user-bg);
             color: white;
@@ -540,14 +546,14 @@
         
         <div class="chat-messages" id="messages">
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                 <div class="message-content">
                     <div class="message-text">👋 Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
                     <div class="message-time">Just now</div>
                 </div>
             </div>
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                 <div class="message-content">
                     <div class="message-text">Try telling me about your preferences, projects, or ask me anything. I'll remember it all for our future conversations!</div>
                     <div class="message-time">Just now</div>
@@ -556,7 +562,7 @@
         </div>
         
         <div class="typing-indicator" id="typing">
-            <div class="message-avatar" style="background: var(--accent-primary); color: white;">🧠</div>
+            <div class="message-avatar" style="background: var(--accent-primary);"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
             <div class="typing-dots">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -916,7 +922,9 @@
             messageDiv.id = messageId;
             
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const avatar = sender === 'user' ? '👤' : '🧠';
+            const avatar = sender === 'user'
+                ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
             
             let actionsHTML = '';
             if (sender === 'assistant') {
@@ -1155,7 +1163,7 @@
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
-                    <div class="message-avatar">🧠</div>
+                    <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                     <div class="message-content">
                         <div class="message-text">👋 Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
                         <div class="message-time">Just now</div>
@@ -1197,7 +1205,7 @@
                 currentMessages = [];
                 document.getElementById('messages').innerHTML = `
                     <div class="message assistant">
-                        <div class="message-avatar">🧠</div>
+                        <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                         <div class="message-content">
                             <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
                             <div class="message-time">Just now</div>
@@ -1220,10 +1228,12 @@
             messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${msg.sender}`;
-                
+
                 const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const avatar = msg.sender === 'user' ? '👤' : '🧠';
-                
+                const avatar = msg.sender === 'user'
+                    ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                    : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
+
                 messageDiv.innerHTML = `
                     <div class="message-avatar">${avatar}</div>
                     <div class="message-content">
