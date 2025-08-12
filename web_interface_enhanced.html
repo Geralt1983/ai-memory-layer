@@ -10,28 +10,28 @@
             --bg-primary: #ffffff;
             --bg-secondary: #f7f7f8;
             --bg-tertiary: #ececec;
-            --text-primary: #2e2e2e;
+            --text-primary: #202123;
             --text-secondary: #8e8ea0;
             --border-primary: #d9d9e3;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --user-bg: #10a37f;
+            --user-bg: #c9c9d3; /* user avatar */
             --assistant-bg: #f7f7f8;
             --shadow: rgba(0, 0, 0, 0.1);
         }
 
         [data-theme="dark"] {
             /* Dark theme */
-            --bg-primary: #212121;
-            --bg-secondary: #2f2f2f;
-            --bg-tertiary: #3c3c3c;
-            --text-primary: #ececec;
-            --text-secondary: #9c9c9c;
-            --border-primary: #4a4a4a;
+            --bg-primary: #202123;
+            --bg-secondary: #343541;
+            --bg-tertiary: #444654;
+            --text-primary: #ececf1;
+            --text-secondary: #9ca3af;
+            --border-primary: #565869;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --user-bg: #10a37f;
-            --assistant-bg: #2f2f2f;
+            --user-bg: #40414f;
+            --assistant-bg: #343541;
             --shadow: rgba(0, 0, 0, 0.3);
         }
 
@@ -52,12 +52,14 @@
 
         /* Sidebar */
         .sidebar {
-            width: 260px;
+            width: 280px;
             background: var(--bg-secondary);
             border-right: 1px solid var(--border-primary);
+            box-shadow: 2px 0 4px var(--shadow);
             display: flex;
             flex-direction: column;
             transition: transform 0.3s ease;
+            border-radius: 0 16px 16px 0;
         }
 
         .sidebar-header {
@@ -166,6 +168,8 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            box-shadow: 0 1px 2px var(--shadow);
+            border-radius: 16px 16px 0 0;
         }
 
         .chat-title {
@@ -208,32 +212,41 @@
             max-width: 800px;
             margin-left: auto;
             margin-right: auto;
-        }
-
-        .message-avatar {
-            width: 30px;
-            height: 30px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            flex-shrink: 0;
-        }
-
-        .message.user .message-avatar {
-            background: var(--user-bg);
-            color: white;
-        }
-
-        .message.assistant .message-avatar {
-            background: var(--accent-primary);
-            color: white;
+            padding: 0 16px;
         }
 
         .message-content {
             flex: 1;
             min-width: 0;
+            background: var(--bg-secondary);
+            padding: 12px 16px;
+            border-radius: 16px;
+            box-shadow: 0 1px 2px var(--shadow);
+        }
+
+        .message.user .message-content {
+            background: var(--bg-primary);
+        }
+
+        [data-theme="dark"] .message.assistant .message-content {
+            background: var(--bg-tertiary);
+        }
+
+        [data-theme="dark"] .message.user .message-content {
+            background: var(--bg-secondary);
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .message-avatar svg {
+            width: 100%;
+            height: 100%;
         }
 
         .message-text {
@@ -320,6 +333,8 @@
             padding: 24px;
             background: var(--bg-primary);
             border-top: 1px solid var(--border-primary);
+            box-shadow: 0 -1px 2px var(--shadow);
+            border-radius: 0 0 16px 16px;
         }
 
         .input-container {
@@ -333,8 +348,9 @@
             align-items: flex-end;
             background: var(--bg-secondary);
             border: 1px solid var(--border-primary);
-            border-radius: 12px;
+            border-radius: 16px;
             padding: 12px;
+            box-shadow: 0 1px 2px var(--shadow);
             transition: border-color 0.2s;
         }
 
@@ -540,14 +556,24 @@
         
         <div class="chat-messages" id="messages">
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar">
+                    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
+                        <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
+                    </svg>
+                </div>
                 <div class="message-content">
                     <div class="message-text">👋 Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
                     <div class="message-time">Just now</div>
                 </div>
             </div>
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar">
+                    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
+                        <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
+                    </svg>
+                </div>
                 <div class="message-content">
                     <div class="message-text">Try telling me about your preferences, projects, or ask me anything. I'll remember it all for our future conversations!</div>
                     <div class="message-time">Just now</div>
@@ -556,7 +582,12 @@
         </div>
         
         <div class="typing-indicator" id="typing">
-            <div class="message-avatar" style="background: var(--accent-primary); color: white;">🧠</div>
+            <div class="message-avatar">
+                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
+                    <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
+                </svg>
+            </div>
             <div class="typing-dots">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -598,6 +629,18 @@
 
     <script>
         const API_BASE = 'http://localhost:8000';
+        const assistantAvatar = `
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
+                <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
+            </svg>
+        `;
+        const userAvatar = `
+            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="16" cy="16" r="16" style="fill: var(--user-bg);" />
+                <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">U</text>
+            </svg>
+        `;
         let isConnected = false;
         let conversations = [];
         let currentConversationId = 'current';
@@ -916,7 +959,7 @@
             messageDiv.id = messageId;
             
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const avatar = sender === 'user' ? '👤' : '🧠';
+            const avatar = sender === 'user' ? userAvatar : assistantAvatar;
             
             let actionsHTML = '';
             if (sender === 'assistant') {
@@ -1155,7 +1198,12 @@
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
-                    <div class="message-avatar">🧠</div>
+                    <div class="message-avatar">
+                        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
+                            <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
+                        </svg>
+                    </div>
                     <div class="message-content">
                         <div class="message-text">👋 Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
                         <div class="message-time">Just now</div>
@@ -1197,7 +1245,12 @@
                 currentMessages = [];
                 document.getElementById('messages').innerHTML = `
                     <div class="message assistant">
-                        <div class="message-avatar">🧠</div>
+                        <div class="message-avatar">
+                            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
+                                <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
+                            </svg>
+                        </div>
                         <div class="message-content">
                             <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
                             <div class="message-time">Just now</div>
@@ -1222,7 +1275,7 @@
                 messageDiv.className = `message ${msg.sender}`;
                 
                 const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const avatar = msg.sender === 'user' ? '👤' : '🧠';
+                const avatar = msg.sender === 'user' ? userAvatar : assistantAvatar;
                 
                 messageDiv.innerHTML = `
                     <div class="message-avatar">${avatar}</div>
