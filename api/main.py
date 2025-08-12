@@ -181,9 +181,36 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+# Add API token authentication middleware
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    """Simple token-based auth using Authorization header."""
+    token = os.getenv("API_AUTH_TOKEN")
+    unprotected_paths = {"/health"}
+    if (
+        token
+        and request.method != "OPTIONS"
+        and request.url.path not in unprotected_paths
+    ):
+        auth_header = request.headers.get("Authorization")
+        if auth_header != f"Bearer {token}":
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"detail": "Unauthorized"},
+            )
+    return await call_next(request)
+
+
+# Add CORS middleware
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins == "*":
+    cors_origins = ["*"]
+else:
+    cors_origins = [o.strip() for o in allowed_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
