@@ -359,13 +359,22 @@
             color: var(--text-secondary);
         }
 
-        .input-controls {
+        .input-left-controls,
+        .input-right-controls {
             display: flex;
             gap: 8px;
+            align-items: center;
+        }
+
+        .input-left-controls {
+            margin-right: 8px;
+        }
+
+        .input-right-controls {
             margin-left: 8px;
         }
 
-        .voice-btn, .send-btn {
+        .icon-btn {
             background: none;
             border: none;
             color: var(--text-secondary);
@@ -376,7 +385,7 @@
             font-size: 18px;
         }
 
-        .voice-btn:hover, .send-btn:hover {
+        .icon-btn:hover {
             background: var(--bg-tertiary);
             color: var(--text-primary);
         }
@@ -567,17 +576,21 @@
         <div class="input-area">
             <div class="input-container">
                 <div class="input-wrapper">
-                    <textarea 
-                        class="message-input" 
-                        id="messageInput" 
+                    <div class="input-left-controls">
+                        <button class="icon-btn attach-btn" id="attachBtn" onclick="attachFile()" title="Attach file">📎</button>
+                    </div>
+                    <textarea
+                        class="message-input"
+                        id="messageInput"
                         placeholder="Message AI Memory Layer..."
                         rows="1"
                         onkeydown="handleKeyDown(event)"
                         oninput="autoResize(this)"
                     ></textarea>
-                    <div class="input-controls">
-                        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice input">🎤</button>
-                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">➤</button>
+                    <div class="input-right-controls">
+                        <button class="icon-btn voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice input">🎤</button>
+                        <button class="icon-btn stop-btn" id="stopBtn" onclick="stopGeneration()" title="Stop generation" style="display: none;">⏹</button>
+                        <button class="icon-btn send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">➤</button>
                     </div>
                 </div>
             </div>
@@ -809,6 +822,11 @@
             }
         }
 
+        // Placeholder for future attachment support
+        function attachFile() {
+            alert('Attachment feature coming soon!');
+        }
+
         // Regenerate message
         async function regenerateMessage(messageId) {
             const messageDiv = document.getElementById(messageId);
@@ -854,7 +872,7 @@
             input.value = '';
             autoResize(input);
             
-            // Show typing indicator with stop button
+            // Show typing indicator and swap controls
             isGenerating = true;
             showTyping(true);
             
@@ -1043,37 +1061,29 @@
             }
         }
 
-        // Show/hide typing indicator
+        // Show/hide typing indicator and toggle send/stop buttons
         function showTyping(show) {
             const typing = document.getElementById('typing');
             const messages = document.getElementById('messages');
-            
+            const sendBtn = document.getElementById('sendBtn');
+            const stopBtn = document.getElementById('stopBtn');
+
             if (show) {
                 typing.style.display = 'flex';
-                // Update typing indicator with stop button if generating
-                if (isGenerating) {
-                    typing.innerHTML = `
-                        <div class="typing-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                        <button class="message-action-btn" onclick="stopGeneration()" style="opacity: 1; margin-left: 10px;">
-                            ⏹️ Stop
-                        </button>
-                    `;
-                } else {
-                    typing.innerHTML = `
-                        <div class="typing-dots">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                    `;
-                }
+                typing.innerHTML = `
+                    <div class="typing-dots">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </div>
+                `;
+                sendBtn.style.display = 'none';
+                stopBtn.style.display = 'inline';
                 messages.scrollTop = messages.scrollHeight;
             } else {
                 typing.style.display = 'none';
+                sendBtn.style.display = 'inline';
+                stopBtn.style.display = 'none';
             }
         }
 
