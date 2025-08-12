@@ -199,7 +199,9 @@ python cli_interface.py export --format json
 
 # Search and clean up
 python cli_interface.py search "old project"
-# Then manually review and clean up outdated memories via API
+# Update or remove memories
+python cli_interface.py update MEMORY_ID "new content" --metadata '{"tag": "value"}'
+python cli_interface.py delete MEMORY_ID
 ```
 
 ## 🎯 Best Practices
