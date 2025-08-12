@@ -3,7 +3,12 @@ Direct OpenAI Integration - GPT-4o Optimized Conversation Management
 Human-like responses with sophisticated memory integration and context awareness
 """
 from typing import List, Dict, Any, Optional, Tuple
-from openai import OpenAI
+from openai import (
+    OpenAI,
+    RateLimitError,
+    APITimeoutError,
+    APIConnectionError,
+)
 import json
 import re
 from datetime import datetime
@@ -12,6 +17,7 @@ from core.memory_engine import Memory, MemoryEngine
 from core.logging_config import get_logger, monitor_performance
 from .embeddings import OpenAIEmbeddings
 import os
+import time
 
 
 class DirectOpenAIChat:
@@ -24,6 +30,8 @@ class DirectOpenAIChat:
         model: str = "gpt-4o",
         embedding_model: str = "text-embedding-ada-002",
         system_prompt_path: str = "./prompts/system_prompt_4o.txt",
+        max_retries: int = 3,
+        backoff_factor: float = 2.0,
     ):
         self.client = OpenAI(api_key=api_key)
         self.model = model
@@ -31,6 +39,8 @@ class DirectOpenAIChat:
         self.embeddings = OpenAIEmbeddings(api_key, embedding_model)
         self.logger = get_logger("direct_openai")
         self.system_prompt_path = system_prompt_path
+        self.max_retries = max_retries
+        self.backoff_factor = backoff_factor
         
         # Store conversation history in memory by thread_id
         self.conversations = {}
@@ -492,68 +502,91 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         # Record how many messages were sent for external inspection
         self.last_messages_count = len(messages)
         
-        try:
-            # GPT-4o optimized API call with human-like tuning
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=temperature,  # 0.6-0.75 for human-like responses
-                top_p=1.0,  # Full token diversity
-                presence_penalty=0.5,  # Encourage new topics/ideas
-                frequency_penalty=0.25,  # Reduce repetition
-                max_tokens=1200  # Allow for more detailed responses
-            )
-            
-            assistant_response = response.choices[0].message.content
-            
-            self.logger.info(
-                f"Received response from OpenAI",
-                extra={
-                    "response_length": len(assistant_response),
-                    "total_tokens": response.usage.total_tokens if response.usage else 0,
-                    "thread_id": thread_id
-                }
-            )
-            
-            # Store in conversation history
-            if remember_response:
-                self._add_to_conversation(thread_id, "user", message)
-                self._add_to_conversation(thread_id, "assistant", assistant_response)
-                
-                # Detect and store identity corrections
-                self._detect_and_store_corrections(message, assistant_response, thread_id)
-                
-                # Determine conversation title if not set
-                conversation_title = None
-                if thread_id and len(self.conversations.get(thread_id, [])) <= 2:
-                    # First exchange - try to extract title from the topic
-                    conversation_title = self._extract_conversation_title(message, assistant_response)
-                
-                # Also store in long-term memory for search with enhanced metadata
-                self.memory_engine.add_memory(
-                    content=f"User: {message}",
-                    role="user",
-                    thread_id=thread_id,
-                    title=conversation_title,
-                    type="history",
-                    importance=0.7,
-                    metadata={"type": "user_message", "thread_id": thread_id}
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                self.logger.info(
+                    f"Chat completion attempt {attempt} for thread {thread_id}",
+                    extra={"thread_id": thread_id, "attempt": attempt},
                 )
-                self.memory_engine.add_memory(
-                    content=f"Assistant: {assistant_response}",
-                    role="assistant", 
-                    thread_id=thread_id,
-                    title=conversation_title,
-                    type="history",
-                    importance=0.6,
-                    metadata={"type": "assistant_response", "thread_id": thread_id}
-                )
-            
-            return assistant_response, messages
 
-        except Exception as e:
-            self.logger.error(f"OpenAI API error: {e}", exc_info=True)
-            raise
+                # GPT-4o optimized API call with human-like tuning
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,  # 0.6-0.75 for human-like responses
+                    top_p=1.0,  # Full token diversity
+                    presence_penalty=0.5,  # Encourage new topics/ideas
+                    frequency_penalty=0.25,  # Reduce repetition
+                    max_tokens=1200  # Allow for more detailed responses
+                )
+
+                assistant_response = response.choices[0].message.content
+
+                self.logger.info(
+                    f"Received response from OpenAI",
+                    extra={
+                        "response_length": len(assistant_response),
+                        "total_tokens": response.usage.total_tokens if response.usage else 0,
+                        "thread_id": thread_id
+                    }
+                )
+
+                # Store in conversation history
+                if remember_response:
+                    self._add_to_conversation(thread_id, "user", message)
+                    self._add_to_conversation(thread_id, "assistant", assistant_response)
+
+                    # Detect and store identity corrections
+                    self._detect_and_store_corrections(message, assistant_response, thread_id)
+
+                    # Determine conversation title if not set
+                    conversation_title = None
+                    if thread_id and len(self.conversations.get(thread_id, [])) <= 2:
+                        # First exchange - try to extract title from the topic
+                        conversation_title = self._extract_conversation_title(message, assistant_response)
+
+                    # Also store in long-term memory for search with enhanced metadata
+                    self.memory_engine.add_memory(
+                        content=f"User: {message}",
+                        role="user",
+                        thread_id=thread_id,
+                        title=conversation_title,
+                        type="history",
+                        importance=0.7,
+                        metadata={"type": "user_message", "thread_id": thread_id}
+                    )
+                    self.memory_engine.add_memory(
+                        content=f"Assistant: {assistant_response}",
+                        role="assistant",
+                        thread_id=thread_id,
+                        title=conversation_title,
+                        type="history",
+                        importance=0.6,
+                        metadata={"type": "assistant_response", "thread_id": thread_id}
+                    )
+
+                return assistant_response, messages
+
+            except (RateLimitError, APITimeoutError, APIConnectionError) as e:
+                self.logger.warning(
+                    f"OpenAI API error on attempt {attempt}: {e}",
+                    extra={"thread_id": thread_id, "attempt": attempt},
+                )
+                if attempt == self.max_retries:
+                    error_message = (
+                        f"Failed to get response from OpenAI after {self.max_retries} attempts: {e}"
+                    )
+                    self.logger.error(error_message, extra={"thread_id": thread_id})
+                    raise RuntimeError(error_message) from e
+
+                sleep_time = self.backoff_factor ** (attempt - 1)
+                time.sleep(sleep_time)
+
+            except Exception as e:
+                self.logger.error(
+                    f"OpenAI API error: {e}", exc_info=True, extra={"thread_id": thread_id, "attempt": attempt}
+                )
+                raise
 
     # ------------------------------------------------------------------
     # Backwards compatibility helpers
