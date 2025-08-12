@@ -35,6 +35,7 @@ from abc import ABC, abstractmethod
 import json
 import os
 from pathlib import Path
+from filelock import FileLock
 from .logging_config import get_logger, log_memory_operation, monitor_performance
 from .utils import parse_timestamp
 
@@ -350,15 +351,20 @@ class MemoryEngine:
                 },
             )
 
-            # Create directory if it doesn't exist
-            Path(self.persist_path).parent.mkdir(parents=True, exist_ok=True)
+            lock_path = f"{self.persist_path}.lock"
+            tmp_path = f"{self.persist_path}.tmp"
 
-            # Convert memories to serializable format
-            memories_data = [memory.to_dict() for memory in self.memories]
+            with FileLock(lock_path):
+                # Create directory if it doesn't exist
+                Path(self.persist_path).parent.mkdir(parents=True, exist_ok=True)
 
-            # Save to JSON file
-            with open(self.persist_path, "w") as f:
-                json.dump(memories_data, f, indent=2)
+                # Convert memories to serializable format
+                memories_data = [memory.to_dict() for memory in self.memories]
+
+                # Write to temporary file and atomically replace
+                with open(tmp_path, "w") as f:
+                    json.dump(memories_data, f, indent=2)
+                os.replace(tmp_path, self.persist_path)
 
             self.logger.info(
                 "Memories saved successfully",
