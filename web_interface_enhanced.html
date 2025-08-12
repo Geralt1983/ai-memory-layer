@@ -15,23 +15,23 @@
             --border-primary: #d9d9e3;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --user-bg: #10a37f;
+            --user-bg: #ffffff;
             --assistant-bg: #f7f7f8;
             --shadow: rgba(0, 0, 0, 0.1);
         }
 
         [data-theme="dark"] {
             /* Dark theme */
-            --bg-primary: #212121;
-            --bg-secondary: #2f2f2f;
-            --bg-tertiary: #3c3c3c;
+            --bg-primary: #343541;
+            --bg-secondary: #40414f;
+            --bg-tertiary: #202123;
             --text-primary: #ececec;
             --text-secondary: #9c9c9c;
             --border-primary: #4a4a4a;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --user-bg: #10a37f;
-            --assistant-bg: #2f2f2f;
+            --user-bg: #343541;
+            --assistant-bg: #444654;
             --shadow: rgba(0, 0, 0, 0.3);
         }
 
@@ -42,7 +42,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            font-family: "Inter", "Söhne", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             height: 100vh;
@@ -499,7 +499,7 @@
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <button class="new-chat-btn" onclick="startNewChat()">+ New chat</button>
-            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">ð</button>
         </div>
         
         <div class="conversations" id="conversations">
@@ -528,26 +528,26 @@
         <div class="chat-header">
             <div class="chat-title">
                 AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small>
-                <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">↻ Reload</button>
-                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">🆕 New Chat</button>
+                <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">â» Reload</button>
+                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">ð New Chat</button>
             </div>
             <div class="header-controls">
-                <button class="control-btn" onclick="searchMemories()">🔍 Search</button>
-                <button class="control-btn" onclick="showMemoryStats()">📊 Stats</button>
-                <button class="control-btn" onclick="exportMemories()">💾 Export</button>
+                <button class="control-btn" onclick="searchMemories()">ð Search</button>
+                <button class="control-btn" onclick="showMemoryStats()">ð Stats</button>
+                <button class="control-btn" onclick="exportMemories()">ð¾ Export</button>
             </div>
         </div>
         
         <div class="chat-messages" id="messages">
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar">ð§ </div>
                 <div class="message-content">
-                    <div class="message-text">👋 Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
+                    <div class="message-text">ð Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
                     <div class="message-time">Just now</div>
                 </div>
             </div>
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar">ð§ </div>
                 <div class="message-content">
                     <div class="message-text">Try telling me about your preferences, projects, or ask me anything. I'll remember it all for our future conversations!</div>
                     <div class="message-time">Just now</div>
@@ -556,7 +556,7 @@
         </div>
         
         <div class="typing-indicator" id="typing">
-            <div class="message-avatar" style="background: var(--accent-primary); color: white;">🧠</div>
+            <div class="message-avatar" style="background: var(--accent-primary); color: white;">ð§ </div>
             <div class="typing-dots">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -576,8 +576,8 @@
                         oninput="autoResize(this)"
                     ></textarea>
                     <div class="input-controls">
-                        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice input">🎤</button>
-                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">➤</button>
+                        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice input">ð¤</button>
+                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">â¤</button>
                     </div>
                 </div>
             </div>
@@ -697,11 +697,11 @@
             
             if (body.getAttribute('data-theme') === 'dark') {
                 body.setAttribute('data-theme', 'light');
-                themeBtn.textContent = '🌙';
+                themeBtn.textContent = 'ð';
                 localStorage.setItem('theme', 'light');
             } else {
                 body.setAttribute('data-theme', 'dark');
-                themeBtn.textContent = '☀️';
+                themeBtn.textContent = 'âï¸';
                 localStorage.setItem('theme', 'dark');
             }
         }
@@ -710,7 +710,7 @@
         function loadTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.body.setAttribute('data-theme', savedTheme);
-            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? 'âï¸' : 'ð';
         }
 
         // Auto-resize textarea
@@ -790,7 +790,7 @@
                 // Show feedback
                 const copyBtn = messageDiv.querySelector('button[onclick*="copyMessage"]');
                 const originalText = copyBtn.innerHTML;
-                copyBtn.innerHTML = '✅ Copied!';
+                copyBtn.innerHTML = 'â Copied!';
                 setTimeout(() => {
                     copyBtn.innerHTML = originalText;
                 }, 2000);
@@ -894,7 +894,7 @@
                 isGenerating = false;
                 showTyping(false);
                 if (error.name !== 'AbortError') {
-                    addMessage('assistant', '❌ Sorry, I encountered an error. Please check if the API server is running.');
+                    addMessage('assistant', 'â Sorry, I encountered an error. Please check if the API server is running.');
                 }
             } finally {
                 currentGenerationController = null;
@@ -916,17 +916,17 @@
             messageDiv.id = messageId;
             
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const avatar = sender === 'user' ? '👤' : '🧠';
+            const avatar = sender === 'user' ? 'ð¤' : 'ð§ ';
             
             let actionsHTML = '';
             if (sender === 'assistant') {
                 actionsHTML = `
                     <div class="message-actions">
                         <button class="message-action-btn" onclick="regenerateMessage('${messageId}')" title="Regenerate response">
-                            🔄 Regenerate
+                            ð Regenerate
                         </button>
                         <button class="message-action-btn" onclick="copyMessage('${messageId}')" title="Copy to clipboard">
-                            📋 Copy
+                            ð Copy
                         </button>
                     </div>
                 `;
@@ -1059,7 +1059,7 @@
                             <span></span>
                         </div>
                         <button class="message-action-btn" onclick="stopGeneration()" style="opacity: 1; margin-left: 10px;">
-                            ⏹️ Stop
+                            â¹ï¸ Stop
                         </button>
                     `;
                 } else {
@@ -1155,9 +1155,9 @@
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
-                    <div class="message-avatar">🧠</div>
+                    <div class="message-avatar">ð§ </div>
                     <div class="message-content">
-                        <div class="message-text">👋 Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
+                        <div class="message-text">ð Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
                         <div class="message-time">Just now</div>
                     </div>
                 </div>
@@ -1197,9 +1197,9 @@
                 currentMessages = [];
                 document.getElementById('messages').innerHTML = `
                     <div class="message assistant">
-                        <div class="message-avatar">🧠</div>
+                        <div class="message-avatar">ð§ </div>
                         <div class="message-content">
-                            <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                            <div class="message-text">ð Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
                             <div class="message-time">Just now</div>
                         </div>
                     </div>
@@ -1222,7 +1222,7 @@
                 messageDiv.className = `message ${msg.sender}`;
                 
                 const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const avatar = msg.sender === 'user' ? '👤' : '🧠';
+                const avatar = msg.sender === 'user' ? 'ð¤' : 'ð§ ';
                 
                 messageDiv.innerHTML = `
                     <div class="message-avatar">${avatar}</div>
@@ -1253,7 +1253,7 @@
                 });
                 
                 const data = await response.json();
-                let results = `🔍 Search results for "${query}":\n\n`;
+                let results = `ð Search results for "${query}":\n\n`;
                 
                 if (data.memories.length === 0) {
                     results += 'No memories found.';
@@ -1266,7 +1266,7 @@
                 addMessage('assistant', results);
                 
             } catch (error) {
-                addMessage('assistant', '❌ Error searching memories.');
+                addMessage('assistant', 'â Error searching memories.');
             }
         }
 
@@ -1278,19 +1278,19 @@
                 const response = await fetch(`${API_BASE}/memories/stats`);
                 const data = await response.json();
                 
-                const stats = `📊 Memory Statistics:
+                const stats = `ð Memory Statistics:
 
 Total memories: ${data.total_memories}
 Average length: ${data.average_content_length.toFixed(1)} characters
 Total content: ${data.total_content_length} characters
 
 Memory types:
-${Object.entries(data.memory_types).map(([type, count]) => `• ${type}: ${count}`).join('\n')}`;
+${Object.entries(data.memory_types).map(([type, count]) => `â¢ ${type}: ${count}`).join('\n')}`;
                 
                 addMessage('assistant', stats);
                 
             } catch (error) {
-                addMessage('assistant', '❌ Error fetching memory stats.');
+                addMessage('assistant', 'â Error fetching memory stats.');
             }
         }
 
@@ -1314,13 +1314,13 @@ ${Object.entries(data.memory_types).map(([type, count]) => `• ${type}: ${count
                     a.click();
                     window.URL.revokeObjectURL(url);
                     
-                    addMessage('assistant', '💾 Memories exported successfully!');
+                    addMessage('assistant', 'ð¾ Memories exported successfully!');
                 } else {
-                    addMessage('assistant', '❌ Error exporting memories.');
+                    addMessage('assistant', 'â Error exporting memories.');
                 }
                 
             } catch (error) {
-                addMessage('assistant', '❌ Error exporting memories.');
+                addMessage('assistant', 'â Error exporting memories.');
             }
         }
 
