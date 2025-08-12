@@ -10,8 +10,7 @@ import sys
 import pickle
 import numpy as np
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 
 from core.memory_engine import Memory
@@ -20,27 +19,42 @@ from storage.faiss_store import FaissVectorStore
 from optimized_memory_engine import OptimizedMemoryEngine
 from dotenv import load_dotenv
 import logging
+from core.utils import parse_timestamp
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 class OptimizedMemoryLoader:
+    """Optimized memory loader using pre-computed FAISS embeddings.
+
+    Parameters
+    ----------
+    api_key : str, optional
+        OpenAI API key used for generating embeddings during search. If not
+        provided, the loader falls back to the ``OPENAI_API_KEY`` environment
+        variable. A :class:`RuntimeError` is raised if neither source provides a
+        key when embeddings are required.
+
+    Usage
+    -----
+    ``loader = OptimizedMemoryLoader(api_key="sk-...")``
+    ``engine = loader.create_optimized_memory_engine("memories.json", "faiss.index", "faiss.pkl")``
+
+    If ``api_key`` is omitted and ``OPENAI_API_KEY`` is unset, calling
+    :meth:`create_optimized_memory_engine` will raise ``RuntimeError``.
     """
-    Optimized memory loader that uses pre-computed FAISS embeddings
-    instead of regenerating them, following 2025 best practices
-    """
-    
-    def __init__(self) -> None:
+
+    def __init__(self, api_key: Optional[str] = None):
         load_dotenv()
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.api_key = api_key if api_key is not None else os.getenv("OPENAI_API_KEY")
         
     def load_precomputed_memories(
-        self, 
-        memory_json_path: str,
-        faiss_index_path: str,
-        faiss_pkl_path: str
-    ) -> tuple[List[Memory], Optional[FaissVectorStore]]:
+        self,
+        memory_json_path: Union[str, Path],
+        faiss_index_path: Union[str, Path],
+        faiss_pkl_path: Union[str, Path]
+    ) -> tuple[List[Memory], FaissVectorStore]:
         """
         Load memories with pre-computed FAISS embeddings
         
@@ -52,22 +66,26 @@ class OptimizedMemoryLoader:
         Returns:
             Tuple of (memories_list, vector_store)
         """
+        memory_json_path = Path(memory_json_path)
+        faiss_index_path = Path(faiss_index_path)
+        faiss_pkl_path = Path(faiss_pkl_path)
+
         logger.info("🚀 Starting optimized memory loading...")
-        
+
         # 1. Load memory JSON data
         logger.info(f"📄 Loading memories from {memory_json_path}")
-        with open(memory_json_path, 'r', encoding='utf-8') as f:
+        with memory_json_path.open('r', encoding='utf-8') as f:
             memory_data = json.load(f)
         
         logger.info(f"✅ Loaded {len(memory_data)} memories from JSON")
         
         # 2. Load pre-computed FAISS index directly
         logger.info(f"🔍 Loading pre-computed FAISS index from {faiss_index_path}")
-        
+
         # Create vector store with existing index
         vector_store = FaissVectorStore(
             dimension=1536,  # OpenAI ada-002 dimension
-            index_path=faiss_index_path.replace('.index', '')  # Remove .index extension
+            index_path=str(faiss_index_path.with_suffix(''))  # Remove .index extension
         )
         
         # Verify FAISS index loaded correctly
@@ -80,7 +98,7 @@ class OptimizedMemoryLoader:
                 logger.info("✅ FAISS index loaded successfully")
         except Exception as e:
             logger.error(f"❌ Error loading FAISS index: {e}")
-            return [], None
+            raise RuntimeError(f"Error loading FAISS index: {e}")
         
         # 3. Convert JSON data to Memory objects (without embeddings)
         logger.info("🔄 Converting JSON data to Memory objects...")
@@ -89,20 +107,8 @@ class OptimizedMemoryLoader:
         for i, mem_data in enumerate(memory_data):
             try:
                 # Parse timestamp
-                timestamp_str = mem_data.get('timestamp')
-                if timestamp_str:
-                    try:
-                        # Handle various timestamp formats
-                        if 'T' in timestamp_str:
-                            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                        else:
-                            timestamp = datetime.fromtimestamp(float(timestamp_str))
-                        timestamp = timestamp.replace(tzinfo=None)  # Remove timezone for consistency
-                    except:
-                        timestamp = datetime.now()
-                else:
-                    timestamp = datetime.now()
-                
+                timestamp = parse_timestamp(mem_data.get('timestamp'))
+
                 # Create Memory object without embedding (will use FAISS index)
                 memory = Memory(
                     content=mem_data.get('content', ''),
@@ -144,14 +150,15 @@ class OptimizedMemoryLoader:
     
     def create_optimized_memory_engine(
         self,
-        memory_json_path: str,
-        faiss_index_path: str,
-        faiss_pkl_path: str
-    ) -> Optional[OptimizedMemoryEngine]:
+        memory_json_path: Union[str, Path],
+        faiss_index_path: Union[str, Path],
+        faiss_pkl_path: Union[str, Path]
+    ):
         """
         Create a memory engine with optimized loading using pre-computed embeddings
         """
-
+        from core.memory_engine import MemoryEngine
+        
         logger.info("🏗️  Creating optimized MemoryEngine...")
         
         # Load memories and vector store
@@ -161,23 +168,24 @@ class OptimizedMemoryLoader:
         
         if not memories or not vector_store:
             logger.error("❌ Failed to load memories or vector store")
-            return None
+            raise RuntimeError("Failed to load memories or vector store")
         
-        # Initialize embeddings provider (for new queries, not for loading)
-        embeddings_provider = None
-        if self.api_key:
-            embeddings_provider = OpenAIEmbeddings(self.api_key)
-            logger.info("✅ OpenAI embeddings provider ready for new queries")
-        else:
-            logger.warning("⚠️  No API key - search will be limited")
+        # Initialize embeddings provider (required for querying)
+        if not self.api_key:
+            raise RuntimeError(
+                "OpenAI API key is required for embeddings. Provide an api_key or set OPENAI_API_KEY."
+            )
+
+        embeddings_provider = OpenAIEmbeddings(self.api_key)
+        logger.info("✅ OpenAI embeddings provider ready for new queries")
         
         # Create memory engine with pre-loaded data
         memory_engine = OptimizedMemoryEngine(
             vector_store=vector_store,
             embedding_provider=embeddings_provider,
-            persist_path=None,
+            persist_path=None,  # Don't auto-save to prevent overwriting
             auto_save=False,
-            precomputed_mode=True,
+            precomputed_mode=True
         )
         
         # Manually set the memories (bypass the loading process)
@@ -186,11 +194,7 @@ class OptimizedMemoryLoader:
         
         return memory_engine
     
-    def test_search_performance(
-        self,
-        memory_engine: OptimizedMemoryEngine,
-        test_queries: Optional[List[str]] = None,
-    ) -> None:
+    def test_search_performance(self, memory_engine, test_queries: List[str] = None):
         """Test search performance with the optimized loader"""
         if not test_queries:
             test_queries = [
@@ -220,38 +224,42 @@ class OptimizedMemoryLoader:
             except Exception as e:
                 logger.error(f"❌ Search failed for '{query}': {e}")
 
-def main() -> Optional[OptimizedMemoryEngine]:
+def main():
     """Main function to test the optimized loader"""
     if len(sys.argv) < 4:
         print("Usage: python optimized_memory_loader.py <memory.json> <faiss.index> <faiss.pkl>")
         print("Example: python optimized_memory_loader.py data/chatgpt_memories.json data/faiss_chatgpt_index.index data/faiss_chatgpt_index.pkl")
         sys.exit(1)
     
-    memory_json = sys.argv[1]
-    faiss_index = sys.argv[2]
-    faiss_pkl = sys.argv[3]
-    
+    memory_json = Path(sys.argv[1])
+    faiss_index = Path(sys.argv[2])
+    faiss_pkl = Path(sys.argv[3])
+
     # Verify files exist
     for file_path in [memory_json, faiss_index, faiss_pkl]:
-        if not os.path.exists(file_path):
+        if not file_path.exists():
             logger.error(f"❌ File not found: {file_path}")
             sys.exit(1)
     
     # Create optimized loader
     loader = OptimizedMemoryLoader()
     
-    # Create memory engine
-    memory_engine = loader.create_optimized_memory_engine(
-        memory_json, faiss_index, faiss_pkl
-    )
-    
+    try:
+        # Create memory engine
+        memory_engine = loader.create_optimized_memory_engine(
+            memory_json, faiss_index, faiss_pkl
+        )
+    except RuntimeError as e:
+        logger.error(f"❌ {e}")
+        sys.exit(1)
+
     if memory_engine:
         # Test search performance
         loader.test_search_performance(memory_engine)
-        
+
         logger.info("🎉 Optimized memory loading completed successfully!")
         logger.info(f"💾 {len(memory_engine.memories)} memories ready for instant search")
-        
+
         return memory_engine
     else:
         logger.error("❌ Failed to create optimized memory engine")

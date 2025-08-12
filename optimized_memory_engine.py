@@ -5,17 +5,16 @@ Implements 2025 FAISS best practices for fast loading of pre-computed embeddings
 """
 
 import json
-import os
 import numpy as np
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Union, cast
-from dataclasses import dataclass
+from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 
 from core.memory_engine import Memory, MemoryEngine
 from integrations.embeddings import EmbeddingProvider
 from storage.vector_store import VectorStore
 from core.logging_config import get_logger, monitor_performance
+from core.utils import parse_timestamp
 
 logger = get_logger(__name__)
 
@@ -64,7 +63,7 @@ class OptimizedMemoryEngine(MemoryEngine):
     @monitor_performance("load_precomputed_memories")
     def load_precomputed_memories(
         self,
-        memory_json_path: str,
+        memory_json_path: Union[str, Path],
         verify_faiss_alignment: bool = True
     ) -> int:
         """
@@ -78,15 +77,16 @@ class OptimizedMemoryEngine(MemoryEngine):
         Returns:
             Number of memories loaded
         """
+        memory_json_path = Path(memory_json_path)
         logger.info(f"Loading precomputed memories from {memory_json_path}")
-        
-        if not os.path.exists(memory_json_path):
+
+        if not memory_json_path.exists():
             logger.error(f"Memory file not found: {memory_json_path}")
             return 0
-        
+
         try:
             # Load JSON data
-            with open(memory_json_path, 'r', encoding='utf-8') as f:
+            with memory_json_path.open('r', encoding='utf-8') as f:
                 memory_data = json.load(f)
             
             if not memory_data:
@@ -126,8 +126,8 @@ class OptimizedMemoryEngine(MemoryEngine):
         
         for i, mem_data in enumerate(batch):
             try:
-                # Parse timestamp efficiently
-                timestamp = self._parse_timestamp(mem_data.get('timestamp'))
+                # Parse timestamp
+                timestamp = parse_timestamp(mem_data.get('timestamp'))
                 
                 # Create Memory object without embedding
                 memory = Memory(
@@ -152,22 +152,7 @@ class OptimizedMemoryEngine(MemoryEngine):
         
         return memories
     
-    def _parse_timestamp(self, timestamp_str: Optional[str]) -> datetime:
-        """Parse timestamp string efficiently"""
-        if not timestamp_str:
-            return datetime.now()
-        
-        try:
-            if 'T' in timestamp_str:
-                # ISO format
-                return datetime.fromisoformat(timestamp_str.replace('Z', '+00:00')).replace(tzinfo=None)
-            else:
-                # Unix timestamp
-                return datetime.fromtimestamp(float(timestamp_str))
-        except:
-            return datetime.now()
-    
-    def _verify_faiss_alignment(self) -> None:
+    def _verify_faiss_alignment(self):
         """Verify alignment between memories and FAISS index"""
         try:
             if hasattr(self.vector_store, 'index') and hasattr(self.vector_store.index, 'ntotal'):
@@ -273,7 +258,7 @@ class OptimizedMemoryEngine(MemoryEngine):
             logger.info("Auto-save disabled - skipping memory save to prevent overwrite")
             return True
         
-        return cast(bool, super().save_memories(path))
+        return super().save_memories(path)
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get enhanced statistics for the optimized memory engine"""
@@ -301,7 +286,8 @@ def create_optimized_memory_engine(
     memory_json_path: str,
     faiss_index_path: str,
     embedding_provider: Optional[EmbeddingProvider] = None,
-    auto_save: bool = False
+    auto_save: bool = False,
+    dimension: int = 1536
 ) -> OptimizedMemoryEngine:
     """
     Factory function to create an optimized memory engine with pre-computed embeddings
@@ -311,6 +297,7 @@ def create_optimized_memory_engine(
         faiss_index_path: Path to FAISS index (without .index extension)
         embedding_provider: Optional embedding provider for new queries
         auto_save: Whether to enable auto-save (disabled by default)
+        dimension: Embedding dimension used by the FAISS index. Defaults to 1536.
         
     Returns:
         Configured OptimizedMemoryEngine
@@ -319,7 +306,7 @@ def create_optimized_memory_engine(
     
     # Create vector store with pre-computed index
     vector_store = FaissVectorStore(
-        dimension=1536,  # OpenAI ada-002 dimension
+        dimension=dimension,
         index_path=faiss_index_path
     )
     
