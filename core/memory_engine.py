@@ -207,16 +207,25 @@ class MemoryEngine:
                                correction.lower() in m.content.lower())]
         
         self.logger.info(f"Adding identity correction: {correction}")
-        return self.add_memory(correction_content, metadata)
+        return self.add_memory(correction_content, metadata, type="correction")
     
     def get_high_priority_memories(self, limit: int = 3) -> List[Memory]:
         """Get high-priority memories (corrections, identity info) for system context"""
-        high_priority = [m for m in self.memories 
+        high_priority = [m for m in self.memories
                         if m.metadata.get("priority") == "high"]
-        
+
         # Sort by recency
         high_priority.sort(key=lambda m: m.timestamp, reverse=True)
         return high_priority[:limit]
+
+    def get_identity_corrections(self) -> List[Memory]:
+        """Retrieve stored identity correction memories."""
+        return [
+            m
+            for m in self.memories
+            if m.metadata.get("type") == "correction"
+            and m.metadata.get("category") == "identity"
+        ]
 
     @monitor_performance("search_memories")
     def search_memories(self, query: str, k: int = 5, include_importance: bool = True) -> List[Memory]:
@@ -276,6 +285,11 @@ class MemoryEngine:
             # Re-sort by new scores and take top k
             results.sort(key=lambda m: m.relevance_score, reverse=True)
             results = results[:k]
+
+        # Always include identity corrections regardless of relevance score
+        for correction in self.get_identity_corrections():
+            if correction not in results:
+                results.append(correction)
 
         log_memory_operation(
             "search", query_length=len(query), results_count=len(results)
