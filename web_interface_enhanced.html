@@ -4,35 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Memory Layer - Enhanced Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            /* Light theme */
-            --bg-primary: #ffffff;
-            --bg-secondary: #f7f7f8;
-            --bg-tertiary: #ececec;
-            --text-primary: #2e2e2e;
-            --text-secondary: #8e8ea0;
-            --border-primary: #d9d9e3;
-            --accent-primary: #10a37f;
-            --accent-hover: #0d8f72;
-            --user-bg: #10a37f;
-            --assistant-bg: #f7f7f8;
-            --shadow: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-theme="dark"] {
-            /* Dark theme */
-            --bg-primary: #212121;
-            --bg-secondary: #2f2f2f;
-            --bg-tertiary: #3c3c3c;
+            --sidebar-bg: #202123;
+            --chat-bg: #343541;
+            --input-bg: #40414F;
             --text-primary: #ececec;
             --text-secondary: #9c9c9c;
-            --border-primary: #4a4a4a;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --user-bg: #10a37f;
-            --assistant-bg: #2f2f2f;
-            --shadow: rgba(0, 0, 0, 0.3);
+            --assistant-bg: #444654;
+            --user-bg: #343541;
+            --border-primary: #565869;
         }
 
         * {
@@ -42,22 +28,27 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            background: var(--bg-primary);
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--chat-bg);
             color: var(--text-primary);
             height: 100vh;
             display: flex;
-            transition: background-color 0.3s, color 0.3s;
         }
 
         /* Sidebar */
         .sidebar {
             width: 260px;
-            background: var(--bg-secondary);
+            background: var(--sidebar-bg);
+            color: var(--text-primary);
             border-right: 1px solid var(--border-primary);
             display: flex;
             flex-direction: column;
-            transition: transform 0.3s ease;
+            transition: width 0.3s ease;
+            overflow: hidden;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
         }
 
         .sidebar-header {
@@ -65,7 +56,6 @@
             border-bottom: 1px solid var(--border-primary);
             display: flex;
             align-items: center;
-            justify-content: space-between;
         }
 
         .new-chat-btn {
@@ -83,21 +73,6 @@
             background: var(--accent-hover);
         }
 
-        .theme-toggle {
-            background: none;
-            border: 1px solid var(--border-primary);
-            color: var(--text-primary);
-            padding: 6px 8px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.2s;
-        }
-
-        .theme-toggle:hover {
-            background: var(--bg-tertiary);
-        }
-
         .conversations {
             flex: 1;
             overflow-y: auto;
@@ -111,12 +86,11 @@
             cursor: pointer;
             font-size: 14px;
             color: var(--text-secondary);
-            transition: all 0.2s;
-            border: 1px solid transparent;
+            transition: background 0.2s;
         }
 
         .conversation-item:hover {
-            background: var(--bg-tertiary);
+            background: #2a2b32;
             color: var(--text-primary);
         }
 
@@ -159,46 +133,34 @@
             min-width: 0;
         }
 
-        .chat-header {
-            padding: 16px 24px;
+        .top-bar {
+            height: 48px;
+            background: var(--chat-bg);
             border-bottom: 1px solid var(--border-primary);
-            background: var(--bg-primary);
             display: flex;
             align-items: center;
-            justify-content: space-between;
+            gap: 16px;
+            padding: 0 16px;
+        }
+
+        .menu-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
         }
 
         .chat-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
-        }
-
-        .header-controls {
-            display: flex;
-            gap: 8px;
-        }
-
-        .control-btn {
-            background: none;
-            border: 1px solid var(--border-primary);
-            color: var(--text-secondary);
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-
-        .control-btn:hover {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
         }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
             padding: 24px;
-            background: var(--bg-primary);
+            background: var(--chat-bg);
         }
 
         .message {
@@ -234,6 +196,16 @@
         .message-content {
             flex: 1;
             min-width: 0;
+            padding: 8px 12px;
+            border-radius: 8px;
+        }
+
+        .message.user .message-content {
+            background: var(--user-bg);
+        }
+
+        .message.assistant .message-content {
+            background: var(--assistant-bg);
         }
 
         .message-text {
@@ -265,7 +237,7 @@
             padding: 4px 8px;
             font-size: 12px;
             background: transparent;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-primary);
             border-radius: 4px;
             color: var(--text-secondary);
             cursor: pointer;
@@ -273,7 +245,7 @@
         }
 
         .message-action-btn:hover {
-            background: var(--bg-secondary);
+            background: var(--chat-bg);
             color: var(--text-primary);
             border-color: var(--text-secondary);
         }
@@ -318,7 +290,7 @@
         /* Input area */
         .input-area {
             padding: 24px;
-            background: var(--bg-primary);
+            background: var(--input-bg);
             border-top: 1px solid var(--border-primary);
         }
 
@@ -331,7 +303,7 @@
         .input-wrapper {
             display: flex;
             align-items: flex-end;
-            background: var(--bg-secondary);
+            background: var(--chat-bg);
             border: 1px solid var(--border-primary);
             border-radius: 12px;
             padding: 12px;
@@ -377,7 +349,7 @@
         }
 
         .voice-btn:hover, .send-btn:hover {
-            background: var(--bg-tertiary);
+            background: #2a2b32;
             color: var(--text-primary);
         }
 
@@ -403,14 +375,9 @@
         /* Mobile responsive */
         @media (max-width: 768px) {
             .sidebar {
-                transform: translateX(-100%);
                 position: fixed;
                 height: 100vh;
                 z-index: 1000;
-            }
-
-            .sidebar.open {
-                transform: translateX(0);
             }
 
             .chat-messages {
@@ -494,12 +461,11 @@
         }
     </style>
 </head>
-<body data-theme="light">
+<body>
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <button class="new-chat-btn" onclick="startNewChat()">+ New chat</button>
-            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+            <button class="new-chat-btn" onclick="startNewChat()">+ New Chat</button>
         </div>
         
         <div class="conversations" id="conversations">
@@ -525,19 +491,10 @@
 
     <!-- Main content -->
     <div class="main-content">
-        <div class="chat-header">
-            <div class="chat-title">
-                AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small>
-                <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">↻ Reload</button>
-                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">🆕 New Chat</button>
-            </div>
-            <div class="header-controls">
-                <button class="control-btn" onclick="searchMemories()">🔍 Search</button>
-                <button class="control-btn" onclick="showMemoryStats()">📊 Stats</button>
-                <button class="control-btn" onclick="exportMemories()">💾 Export</button>
-            </div>
+        <div class="top-bar">
+            <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+            <div class="chat-title">AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small></div>
         </div>
-        
         <div class="chat-messages" id="messages">
             <div class="message assistant">
                 <div class="message-avatar">🧠</div>
@@ -613,15 +570,6 @@
             localStorage.setItem('conversationThreadId', conversationThreadId);
         }
 
-        // Start a new conversation with fresh context
-        function startNewConversation() {
-            if (confirm('Start a new conversation? This will clear the current conversation context.')) {
-                localStorage.removeItem('conversationThreadId');
-                localStorage.removeItem('conversations');
-                location.reload();
-            }
-        }
-
         // Initialize
         async function init() {
             await checkConnection();
@@ -688,29 +636,6 @@
                 `;
                 container.appendChild(currentDiv);
             }
-        }
-
-        // Theme management
-        function toggleTheme() {
-            const body = document.body;
-            const themeBtn = document.querySelector('.theme-toggle');
-            
-            if (body.getAttribute('data-theme') === 'dark') {
-                body.setAttribute('data-theme', 'light');
-                themeBtn.textContent = '🌙';
-                localStorage.setItem('theme', 'light');
-            } else {
-                body.setAttribute('data-theme', 'dark');
-                themeBtn.textContent = '☀️';
-                localStorage.setItem('theme', 'dark');
-            }
-        }
-
-        // Load saved theme
-        function loadTheme() {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.body.setAttribute('data-theme', savedTheme);
-            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
         }
 
         // Auto-resize textarea
@@ -1207,10 +1132,14 @@
             }
             
             // Update active state
-            document.querySelectorAll('.conversation-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            element.classList.add('active');
+        document.querySelectorAll('.conversation-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        element.classList.add('active');
+    }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
         }
 
         function loadConversationMessages(messages) {
@@ -1326,7 +1255,6 @@ ${Object.entries(data.memory_types).map(([type, count]) => `• ${type}: ${count
 
         // Initialize on load
         window.addEventListener('load', () => {
-            loadTheme();
             init();
         });
         
