@@ -16,6 +16,7 @@ from pathlib import Path
 from core.memory_engine import Memory
 from integrations.embeddings import OpenAIEmbeddings
 from storage.faiss_store import FaissVectorStore
+from optimized_memory_engine import OptimizedMemoryEngine
 from dotenv import load_dotenv
 import logging
 from core.utils import parse_timestamp
@@ -97,7 +98,7 @@ class OptimizedMemoryLoader:
                 logger.info("✅ FAISS index loaded successfully")
         except Exception as e:
             logger.error(f"❌ Error loading FAISS index: {e}")
-            return [], None
+            raise RuntimeError(f"Error loading FAISS index: {e}")
         
         # 3. Convert JSON data to Memory objects (without embeddings)
         logger.info("🔄 Converting JSON data to Memory objects...")
@@ -167,7 +168,7 @@ class OptimizedMemoryLoader:
         
         if not memories or not vector_store:
             logger.error("❌ Failed to load memories or vector store")
-            return None
+            raise RuntimeError("Failed to load memories or vector store")
         
         # Initialize embeddings provider (required for querying)
         if not self.api_key:
@@ -179,10 +180,12 @@ class OptimizedMemoryLoader:
         logger.info("✅ OpenAI embeddings provider ready for new queries")
         
         # Create memory engine with pre-loaded data
-        memory_engine = MemoryEngine(
+        memory_engine = OptimizedMemoryEngine(
             vector_store=vector_store,
             embedding_provider=embeddings_provider,
-            persist_path=None  # Don't auto-save to prevent overwriting
+            persist_path=None,  # Don't auto-save to prevent overwriting
+            auto_save=False,
+            precomputed_mode=True
         )
         
         # Manually set the memories (bypass the loading process)
