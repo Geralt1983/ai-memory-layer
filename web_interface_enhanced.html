@@ -283,6 +283,12 @@
             cursor: not-allowed;
         }
 
+        .feedback-btn.selected {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
+        }
+
         .typing-indicator {
             display: none;
             align-items: center;
@@ -606,6 +612,7 @@
         let recognition = null;
         let isGenerating = false;
         let currentGenerationController = null;
+        const messageFeedback = {};
         // Get or create persistent conversation thread ID
         let conversationThreadId = localStorage.getItem('conversationThreadId');
         if (!conversationThreadId) {
@@ -922,6 +929,8 @@
             if (sender === 'assistant') {
                 actionsHTML = `
                     <div class="message-actions">
+                        <button class="message-action-btn feedback-btn up" onclick="sendFeedback('${messageId}', 'up')" title="Thumbs up">👍</button>
+                        <button class="message-action-btn feedback-btn down" onclick="sendFeedback('${messageId}', 'down')" title="Thumbs down">👎</button>
                         <button class="message-action-btn" onclick="regenerateMessage('${messageId}')" title="Regenerate response">
                             🔄 Regenerate
                         </button>
@@ -955,6 +964,32 @@
             if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
                 console.log('Triggering title generation with', currentMessages.length, 'messages');
                 generateConversationTitle();
+            }
+        }
+
+        async function sendFeedback(messageId, value) {
+            if (messageFeedback[messageId]) return;
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+            const upBtn = messageDiv.querySelector('.feedback-btn.up');
+            const downBtn = messageDiv.querySelector('.feedback-btn.down');
+            if (!upBtn || !downBtn) return;
+            upBtn.disabled = downBtn.disabled = true;
+            try {
+                await fetch(`${API_BASE}/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageId, value })
+                });
+                messageFeedback[messageId] = value;
+                if (value === 'up') {
+                    upBtn.classList.add('selected');
+                } else {
+                    downBtn.classList.add('selected');
+                }
+            } catch (err) {
+                console.error('Error sending feedback:', err);
+                upBtn.disabled = downBtn.disabled = false;
             }
         }
 
