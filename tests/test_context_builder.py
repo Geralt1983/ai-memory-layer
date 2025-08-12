@@ -190,3 +190,26 @@ class TestContextBuilder:
         mock_memory_engine_with_search.search_memories.assert_called_once_with(
             "test query", 2
         )
+
+    def test_profile_memories_included(self):
+        """Profile memories should be included when a profile query is provided"""
+        engine = MemoryEngine()
+        mem = engine.add_memory("Jeremy likes skiing")
+        mem.relevance_score = 0.9
+
+        builder = ContextBuilder(engine, profile_query="Jeremy")
+        context = builder.build_context(include_recent=0, include_relevant=0)
+
+        assert "## Profile Information:" in context
+        assert "Jeremy likes skiing" in context
+
+    def test_profile_memories_excluded_without_query(self):
+        """Profile memories are skipped when no profile query is supplied"""
+        engine = MemoryEngine()
+        mem = engine.add_memory("Jeremy likes skiing")
+        mem.relevance_score = 0.9
+
+        builder = ContextBuilder(engine)
+        context = builder.build_context(include_recent=0, include_relevant=0)
+
+        assert context == ""

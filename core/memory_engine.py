@@ -361,8 +361,12 @@ class MemoryEngine:
             # Recreate Memory objects
             self.memories = [Memory.from_dict(data) for data in memories_data]
 
-            # Re-add to vector store if available
-            if self.vector_store and self.embedding_provider:
+            # Re-add to vector store if available and not already populated
+            if (
+                self.vector_store
+                and self.embedding_provider
+                and getattr(getattr(self.vector_store, "index", None), "ntotal", 0) == 0
+            ):
                 self.logger.debug("Re-adding memories to vector store")
                 for memory in self.memories:
                     if memory.embedding is None:
