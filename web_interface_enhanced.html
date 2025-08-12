@@ -854,6 +854,78 @@
             await sendMessage();
         }
 
+        // Edit user message
+        function editMessage(messageId) {
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+
+            const contentDiv = messageDiv.querySelector('.message-content');
+            const textDiv = contentDiv.querySelector('.message-text');
+            const originalText = textDiv.textContent;
+
+            // Create textarea for editing
+            const textarea = document.createElement('textarea');
+            textarea.className = 'edit-textarea';
+            textarea.value = originalText;
+            autoResize(textarea);
+
+            contentDiv.insertBefore(textarea, textDiv);
+            textDiv.style.display = 'none';
+
+            const actionsDiv = contentDiv.querySelector('.message-actions');
+            actionsDiv.innerHTML = '';
+
+            // Save edits
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'message-action-btn';
+            saveBtn.textContent = '💾 Save';
+            saveBtn.onclick = async () => {
+                const newText = textarea.value.trim();
+                if (!newText) return;
+
+                // Remove this user/assistant pair from history
+                const msgIndex = currentMessages.findIndex(m => m.id === messageId);
+                if (msgIndex !== -1) {
+                    currentMessages.splice(msgIndex, 1);
+                    if (currentMessages[msgIndex] && currentMessages[msgIndex].sender === 'assistant') {
+                        currentMessages.splice(msgIndex, 1);
+                    }
+                }
+
+                // Remove assistant response from DOM if present
+                const assistantDiv = messageDiv.nextElementSibling;
+                if (assistantDiv && assistantDiv.classList.contains('assistant')) {
+                    assistantDiv.remove();
+                }
+
+                // Remove the edited message
+                messageDiv.remove();
+
+                // Resend edited message
+                const input = document.getElementById('messageInput');
+                input.value = newText;
+                autoResize(input);
+                await sendMessage();
+            };
+
+            // Cancel editing
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'message-action-btn';
+            cancelBtn.textContent = '❌ Cancel';
+            cancelBtn.onclick = () => {
+                textarea.remove();
+                textDiv.style.display = '';
+                actionsDiv.innerHTML = `
+                    <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                        ✏️ Edit
+                    </button>
+                `;
+            };
+
+            actionsDiv.appendChild(saveBtn);
+            actionsDiv.appendChild(cancelBtn);
+        }
+
         // Send message
         async function sendMessage() {
             const input = document.getElementById('messageInput');
@@ -948,6 +1020,14 @@
                         </button>
                     </div>
                 `;
+            } else if (sender === 'user') {
+                actionsHTML = `
+                    <div class="message-actions">
+                        <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                            ✏️ Edit
+                        </button>
+                    </div>
+                `;
             }
             
             messageDiv.innerHTML = `
@@ -964,6 +1044,7 @@
             
             // Track message for conversation history
             currentMessages.push({
+                id: messageId,
                 sender: sender,
                 content: content,
                 timestamp: new Date().toISOString()
