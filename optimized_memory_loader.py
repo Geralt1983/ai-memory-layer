@@ -25,14 +25,28 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class OptimizedMemoryLoader:
+    """Optimized memory loader using pre-computed FAISS embeddings.
+
+    Parameters
+    ----------
+    api_key : str, optional
+        OpenAI API key used for generating embeddings during search. If not
+        provided, the loader falls back to the ``OPENAI_API_KEY`` environment
+        variable. A :class:`RuntimeError` is raised if neither source provides a
+        key when embeddings are required.
+
+    Usage
+    -----
+    ``loader = OptimizedMemoryLoader(api_key="sk-...")``
+    ``engine = loader.create_optimized_memory_engine("memories.json", "faiss.index", "faiss.pkl")``
+
+    If ``api_key`` is omitted and ``OPENAI_API_KEY`` is unset, calling
+    :meth:`create_optimized_memory_engine` will raise ``RuntimeError``.
     """
-    Optimized memory loader that uses pre-computed FAISS embeddings
-    instead of regenerating them, following 2025 best practices
-    """
-    
-    def __init__(self):
+
+    def __init__(self, api_key: Optional[str] = None):
         load_dotenv()
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.api_key = api_key if api_key is not None else os.getenv("OPENAI_API_KEY")
         
     def load_precomputed_memories(
         self,
@@ -155,13 +169,14 @@ class OptimizedMemoryLoader:
             logger.error("❌ Failed to load memories or vector store")
             return None
         
-        # Initialize embeddings provider (for new queries, not for loading)
-        embeddings_provider = None
-        if self.api_key:
-            embeddings_provider = OpenAIEmbeddings(self.api_key)
-            logger.info("✅ OpenAI embeddings provider ready for new queries")
-        else:
-            logger.warning("⚠️  No API key - search will be limited")
+        # Initialize embeddings provider (required for querying)
+        if not self.api_key:
+            raise RuntimeError(
+                "OpenAI API key is required for embeddings. Provide an api_key or set OPENAI_API_KEY."
+            )
+
+        embeddings_provider = OpenAIEmbeddings(self.api_key)
+        logger.info("✅ OpenAI embeddings provider ready for new queries")
         
         # Create memory engine with pre-loaded data
         memory_engine = MemoryEngine(
@@ -226,18 +241,22 @@ def main():
     # Create optimized loader
     loader = OptimizedMemoryLoader()
     
-    # Create memory engine
-    memory_engine = loader.create_optimized_memory_engine(
-        memory_json, faiss_index, faiss_pkl
-    )
-    
+    try:
+        # Create memory engine
+        memory_engine = loader.create_optimized_memory_engine(
+            memory_json, faiss_index, faiss_pkl
+        )
+    except RuntimeError as e:
+        logger.error(f"❌ {e}")
+        sys.exit(1)
+
     if memory_engine:
         # Test search performance
         loader.test_search_performance(memory_engine)
-        
+
         logger.info("🎉 Optimized memory loading completed successfully!")
         logger.info(f"💾 {len(memory_engine.memories)} memories ready for instant search")
-        
+
         return memory_engine
     else:
         logger.error("❌ Failed to create optimized memory engine")
