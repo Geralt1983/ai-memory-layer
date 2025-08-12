@@ -257,8 +257,9 @@ class OptimizedMemoryEngine(MemoryEngine):
         if not self.auto_save:
             logger.info("Auto-save disabled - skipping memory save to prevent overwrite")
             return True
-        
-        return super().save_memories(path)
+
+        super().save_memories()
+        return True
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get enhanced statistics for the optimized memory engine"""

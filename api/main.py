@@ -3,13 +3,13 @@ FastAPI REST API for AI Memory Layer
 """
 
 import os
-from typing import List, Optional
+from typing import List
 from datetime import datetime
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 import uvicorn
 import time
 
@@ -37,10 +37,6 @@ from .models import (
 )
 
 
-# Global variables for dependency injection
-memory_engine: Optional[MemoryEngine] = None
-direct_openai_chat: Optional[DirectOpenAIChat] = None
-memory_manager: Optional[MemoryManager] = None
 logger = get_logger("api")
 
 
@@ -48,15 +44,14 @@ logger = get_logger("api")
 async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
-    await startup_event()
+    await startup_event(app)
     yield
     # Shutdown
-    await shutdown_event()
+    await shutdown_event(app)
 
 
-async def startup_event():
+async def startup_event(app: FastAPI):
     """Initialize the memory system on startup"""
-    global memory_engine, direct_openai_chat, memory_manager
 
     try:
         logger.info("Starting AI Memory Layer API initialization")
@@ -99,29 +94,28 @@ async def startup_event():
             )
 
         # Initialize memory engine
-        memory_engine = MemoryEngine(
+        app.state.memory_engine = MemoryEngine(
             vector_store=vector_store,
             embedding_provider=embedding_provider,
             persist_path=memory_persist_path,
         )
 
-        
         # Initialize Direct OpenAI Chat (GPT-4o optimized)
-        direct_openai_chat = DirectOpenAIChat(
+        app.state.direct_openai_chat = DirectOpenAIChat(
             api_key=api_key,
-            memory_engine=memory_engine,
+            memory_engine=app.state.memory_engine,
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             system_prompt_path=os.getenv("SYSTEM_PROMPT_PATH", "./prompts/system_prompt_4o.txt"),
         )
 
         # Initialize memory manager
-        memory_manager = create_default_memory_manager(memory_engine)
+        app.state.memory_manager = create_default_memory_manager(app.state.memory_engine)
 
         logger.info(
             "Memory system initialized successfully",
             extra={
                 "vector_store_type": vector_store_type,
-                "existing_memories": len(memory_engine.memories),
+                "existing_memories": len(app.state.memory_engine.memories),
             },
         )
 
@@ -132,10 +126,11 @@ async def startup_event():
         raise
 
 
-async def shutdown_event():
+async def shutdown_event(app: FastAPI):
     """Cleanup on shutdown"""
     logger.info("API shutdown initiated")
 
+    memory_engine = getattr(app.state, "memory_engine", None)
     if memory_engine and memory_engine.persist_path:
         memory_engine.save_memories()
         logger.info("Memories saved on shutdown")
@@ -186,10 +181,36 @@ async def log_requests(request: Request, call_next):
     return response
 
 
+# Add API token authentication middleware
+@app.middleware("http")
+async def api_key_middleware(request: Request, call_next):
+    """Simple token-based auth using Authorization header."""
+    token = os.getenv("API_AUTH_TOKEN")
+    unprotected_paths = {"/health"}
+    if (
+        token
+        and request.method != "OPTIONS"
+        and request.url.path not in unprotected_paths
+    ):
+        auth_header = request.headers.get("Authorization")
+        if auth_header != f"Bearer {token}":
+            return JSONResponse(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                content={"detail": "Unauthorized"},
+            )
+    return await call_next(request)
+
+
 # Add CORS middleware
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*")
+if allowed_origins == "*":
+    cors_origins = ["*"]
+else:
+    cors_origins = [o.strip() for o in allowed_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -218,18 +239,29 @@ async def preflight_handler(rest_of_path: str):
 
 
 # Dependency to get memory engine
-def get_memory_engine() -> MemoryEngine:
-    if not memory_engine:
+def get_memory_engine(request: Request) -> MemoryEngine:
+    engine = getattr(request.app.state, "memory_engine", None)
+    if not engine:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Memory engine not initialized",
         )
-    return memory_engine
+    return engine
 
 
+
+# Dependency to get direct OpenAI chat
+def get_direct_openai_chat(request: Request) -> DirectOpenAIChat:
+    chat = getattr(request.app.state, "direct_openai_chat", None)
+    if not chat:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Direct OpenAI chat not initialized",
+        )
+    return chat
 
 # Dependency to get OpenAI integration (backwards compatible)
-def get_openai_integration() -> DirectOpenAIChat:
+def get_openai_integration(request: Request) -> DirectOpenAIChat:
     """Return the active OpenAI chat integration.
 
     Historically the project exposed a ``get_openai_integration`` dependency
@@ -239,33 +271,18 @@ def get_openai_integration() -> DirectOpenAIChat:
     keeps backwards compatibility while still returning the same
     ``DirectOpenAIChat`` instance.
     """
-
-    if not direct_openai_chat:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Direct OpenAI chat not initialized",
-        )
-    return direct_openai_chat
-
-
-# Dependency to get direct OpenAI chat (newer name used elsewhere)
-def get_direct_openai_chat() -> DirectOpenAIChat:
-    if not direct_openai_chat:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Direct OpenAI chat not initialized",
-        )
-    return direct_openai_chat
+    return get_direct_openai_chat(request)
 
 
 # Dependency to get memory manager
-def get_memory_manager() -> MemoryManager:
-    if not memory_manager:
+def get_memory_manager(request: Request) -> MemoryManager:
+    manager = getattr(request.app.state, "memory_manager", None)
+    if not manager:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Memory manager not initialized",
         )
-    return memory_manager
+    return manager
 
 
 # Exception handler
@@ -381,8 +398,8 @@ async def clear_memories(engine: MemoryEngine = Depends(get_memory_engine)):
 @app.post("/chat", response_model=ChatResponse)
 async def chat_with_memory(
     chat_data: ChatRequest,
-    openai_integration: DirectOpenAIChat = Depends(get_openai_integration),
-    request: Request = None,
+    direct_chat: DirectOpenAIChat = Depends(get_direct_openai_chat),
+    request: Request = None
 ):
     """Chat endpoint using the OpenAI integration."""
     start_time = time.time()
@@ -433,6 +450,29 @@ async def chat_with_memory(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Chat failed: {str(e)}",
         )
+
+
+@app.post("/chat/stream")
+async def chat_with_memory_stream(
+    chat_data: ChatRequest, direct_chat: DirectOpenAIChat = Depends(get_direct_openai_chat)
+):
+    """Stream chat response tokens incrementally"""
+
+    def event_generator():
+        try:
+            for token in direct_chat.chat_stream(
+                message=chat_data.message,
+                thread_id=chat_data.thread_id,
+                system_prompt=chat_data.system_prompt,
+                remember_response=chat_data.remember_response,
+            ):
+                yield f"data: {token}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error("Streaming chat failed", extra={"error": str(e)}, exc_info=True)
+            yield f"data: [ERROR] {str(e)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 # Stats endpoint

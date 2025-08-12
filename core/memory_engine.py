@@ -35,6 +35,7 @@ from abc import ABC, abstractmethod
 import json
 import os
 from pathlib import Path
+from filelock import FileLock
 from .logging_config import get_logger, log_memory_operation, monitor_performance
 from .utils import parse_timestamp
 
@@ -218,6 +219,27 @@ class MemoryEngine:
         high_priority.sort(key=lambda m: m.timestamp, reverse=True)
         return high_priority[:limit]
 
+    def get_identity_memories(self, limit: Optional[int] = None) -> List[Memory]:
+        """Return memories classified as identity.
+
+        A memory qualifies as identity if its ``type`` field is "identity" or
+        if its metadata contains ``{"category": "identity"}``. Results are
+        ordered by recency with the most recent first.  If ``limit`` is
+        provided only that many memories are returned.
+        """
+        identity_memories = [
+            m
+            for m in self.memories
+            if m.type == "identity" or m.metadata.get("category") == "identity"
+        ]
+
+        # Return most recent memories first for consistency with other helpers
+        identity_memories.sort(key=lambda m: m.timestamp, reverse=True)
+
+        if limit is not None:
+            return identity_memories[:limit]
+        return identity_memories
+
     def get_identity_corrections(self) -> List[Memory]:
         """Retrieve stored identity correction memories."""
         return [
@@ -329,15 +351,20 @@ class MemoryEngine:
                 },
             )
 
-            # Create directory if it doesn't exist
-            Path(self.persist_path).parent.mkdir(parents=True, exist_ok=True)
+            lock_path = f"{self.persist_path}.lock"
+            tmp_path = f"{self.persist_path}.tmp"
 
-            # Convert memories to serializable format
-            memories_data = [memory.to_dict() for memory in self.memories]
+            with FileLock(lock_path):
+                # Create directory if it doesn't exist
+                Path(self.persist_path).parent.mkdir(parents=True, exist_ok=True)
 
-            # Save to JSON file
-            with open(self.persist_path, "w") as f:
-                json.dump(memories_data, f, indent=2)
+                # Convert memories to serializable format
+                memories_data = [memory.to_dict() for memory in self.memories]
+
+                # Write to temporary file and atomically replace
+                with open(tmp_path, "w") as f:
+                    json.dump(memories_data, f, indent=2)
+                os.replace(tmp_path, self.persist_path)
 
             self.logger.info(
                 "Memories saved successfully",

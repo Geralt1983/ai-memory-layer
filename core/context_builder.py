@@ -24,13 +24,21 @@ class ContextBuilder:
     def build_context(
         self,
         query: Optional[str] = None,
+        message: Optional[str] = None,
         include_recent: int = 5,
         include_relevant: int = 5,
+        system_prompt: Optional[str] = None,
     ) -> str:
         context_parts = []
 
-        # Include profile information if a query is provided
-        if self.profile_query:
+        # Always include user profile or identity memories
+        if hasattr(self.memory_engine, 'get_identity_memories'):
+            identity_memories = self.memory_engine.get_identity_memories()
+            if identity_memories:
+                context_parts.append("Key information about Jeremy:")
+                context_parts.extend([m.content for m in identity_memories[:5]])
+        elif self.profile_query:
+            # Fallback to profile query method if identity method doesn't exist
             profile_memories = self.memory_engine.search_memories(
                 self.profile_query, k=10
             )

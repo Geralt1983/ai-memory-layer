@@ -4,21 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Memory Layer - Enhanced Chat</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --sidebar-bg: #202123;
-            --chat-bg: #343541;
-            --input-bg: #40414F;
-            --text-primary: #ececec;
-            --text-secondary: #9c9c9c;
+            /* Light theme - ChatGPT colors */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f7f7f8;
+            --bg-tertiary: #ececec;
+            --text-primary: #2e2e2e;
+            --text-secondary: #8e8ea0;
+            --border-primary: #d9d9e3;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --assistant-bg: #444654;
+            --user-bg: #ffffff;
+            --assistant-bg: #f7f7f8;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] {
+            /* Dark theme - ChatGPT colors */
+            --bg-primary: #343541;
+            --bg-secondary: #40414f;
+            --bg-tertiary: #202123;
+            --text-primary: #ececec;
+            --text-secondary: #9c9c9c;
+            --border-primary: #4a4a4a;
+            --accent-primary: #10a37f;
+            --accent-hover: #0d8f72;
             --user-bg: #343541;
-            --border-primary: #565869;
+            --assistant-bg: #444654;
+            --shadow: rgba(0, 0, 0, 0.3);
         }
 
         * {
@@ -28,27 +42,22 @@
         }
 
         body {
-            font-family: 'Inter', system-ui, sans-serif;
-            background: var(--chat-bg);
+            font-family: "Inter", "Söhne", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg-primary);
             color: var(--text-primary);
             height: 100vh;
             display: flex;
+            transition: background-color 0.3s, color 0.3s;
         }
 
         /* Sidebar */
         .sidebar {
             width: 260px;
-            background: var(--sidebar-bg);
-            color: var(--text-primary);
+            background: var(--bg-secondary);
             border-right: 1px solid var(--border-primary);
             display: flex;
             flex-direction: column;
-            transition: width 0.3s ease;
-            overflow: hidden;
-        }
-
-        .sidebar.collapsed {
-            width: 0;
+            transition: transform 0.3s ease;
         }
 
         .sidebar-header {
@@ -56,6 +65,7 @@
             border-bottom: 1px solid var(--border-primary);
             display: flex;
             align-items: center;
+            justify-content: space-between;
         }
 
         .new-chat-btn {
@@ -71,6 +81,21 @@
 
         .new-chat-btn:hover {
             background: var(--accent-hover);
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 1px solid var(--border-primary);
+            color: var(--text-primary);
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-tertiary);
         }
 
         .conversations {
@@ -91,10 +116,44 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+<<<<<<< HEAD
+        }
+
+        .conversation-details {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .conversation-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .conversation-actions button:hover {
+            color: var(--text-primary);
+        }
+
+        .conversation-title-input {
+            width: 100%;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+=======
+>>>>>>> main
         }
 
         .conversation-item:hover {
-            background: #2a2b32;
+            background: var(--bg-tertiary);
             color: var(--text-primary);
         }
 
@@ -129,7 +188,7 @@
         }
 
         .conversation-action-btn:hover {
-            background: #2a2b32;
+            background: var(--bg-tertiary);
             color: var(--text-primary);
         }
 
@@ -171,34 +230,46 @@
             min-width: 0;
         }
 
-        .top-bar {
-            height: 48px;
-            background: var(--chat-bg);
+        .chat-header {
+            padding: 16px 24px;
             border-bottom: 1px solid var(--border-primary);
+            background: var(--bg-primary);
             display: flex;
             align-items: center;
-            gap: 16px;
-            padding: 0 16px;
-        }
-
-        .menu-btn {
-            background: none;
-            border: none;
-            color: var(--text-primary);
-            font-size: 20px;
-            cursor: pointer;
+            justify-content: space-between;
         }
 
         .chat-title {
-            font-size: 16px;
+            font-size: 18px;
             font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            background: none;
+            border: 1px solid var(--border-primary);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
         }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
             padding: 24px;
-            background: var(--chat-bg);
+            background: var(--bg-primary);
         }
 
         .message {
@@ -221,6 +292,12 @@
             flex-shrink: 0;
         }
 
+        .message-avatar img {
+            width: 20px;
+            height: 20px;
+            filter: invert(1);
+        }
+
         .message.user .message-avatar {
             background: var(--user-bg);
             color: white;
@@ -234,16 +311,6 @@
         .message-content {
             flex: 1;
             min-width: 0;
-            padding: 8px 12px;
-            border-radius: 8px;
-        }
-
-        .message.user .message-content {
-            background: var(--user-bg);
-        }
-
-        .message.assistant .message-content {
-            background: var(--assistant-bg);
         }
 
         .message-text {
@@ -275,7 +342,7 @@
             padding: 4px 8px;
             font-size: 12px;
             background: transparent;
-            border: 1px solid var(--border-primary);
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             color: var(--text-secondary);
             cursor: pointer;
@@ -283,7 +350,7 @@
         }
 
         .message-action-btn:hover {
-            background: var(--chat-bg);
+            background: var(--bg-secondary);
             color: var(--text-primary);
             border-color: var(--text-secondary);
         }
@@ -291,6 +358,12 @@
         .message-action-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        .feedback-btn.selected {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
         }
 
         .typing-indicator {
@@ -328,7 +401,7 @@
         /* Input area */
         .input-area {
             padding: 24px;
-            background: var(--input-bg);
+            background: var(--bg-primary);
             border-top: 1px solid var(--border-primary);
         }
 
@@ -341,7 +414,7 @@
         .input-wrapper {
             display: flex;
             align-items: flex-end;
-            background: var(--chat-bg);
+            background: var(--bg-secondary);
             border: 1px solid var(--border-primary);
             border-radius: 12px;
             padding: 12px;
@@ -369,6 +442,15 @@
             color: var(--text-secondary);
         }
 
+        .warning-footer {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 8px;
+            border-top: 1px solid var(--border-primary);
+            background: var(--bg-primary);
+        }
+
         .input-controls {
             display: flex;
             gap: 8px;
@@ -387,7 +469,7 @@
         }
 
         .voice-btn:hover, .send-btn:hover {
-            background: #2a2b32;
+            background: var(--bg-tertiary);
             color: var(--text-primary);
         }
 
@@ -413,9 +495,14 @@
         /* Mobile responsive */
         @media (max-width: 768px) {
             .sidebar {
+                transform: translateX(-100%);
                 position: fixed;
                 height: 100vh;
                 z-index: 1000;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
             }
 
             .chat-messages {
@@ -499,17 +586,20 @@
         }
     </style>
 </head>
-<body>
+<body data-theme="light">
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <button class="new-chat-btn" onclick="startNewChat()">+ New Chat</button>
+            <button class="new-chat-btn" onclick="startNewChat()">+ New chat</button>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
         </div>
         
         <div class="conversations" id="conversations">
             <div class="conversation-item active" onclick="selectConversation(this)">
-                <div>Current Chat</div>
-                <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                <div class="conversation-info">
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                </div>
             </div>
         </div>
         
@@ -529,20 +619,29 @@
 
     <!-- Main content -->
     <div class="main-content">
-        <div class="top-bar">
-            <button class="menu-btn" onclick="toggleSidebar()">☰</button>
-            <div class="chat-title">AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small></div>
+        <div class="chat-header">
+            <div class="chat-title">
+                AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small>
+                <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">↻ Reload</button>
+                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">🆕 New Chat</button>
+            </div>
+            <div class="header-controls">
+                <button class="control-btn" onclick="searchMemories()">🔍 Search</button>
+                <button class="control-btn" onclick="showMemoryStats()">📊 Stats</button>
+                <button class="control-btn" onclick="exportMemories()">💾 Export</button>
+            </div>
         </div>
+        
         <div class="chat-messages" id="messages">
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                 <div class="message-content">
                     <div class="message-text">👋 Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
                     <div class="message-time">Just now</div>
                 </div>
             </div>
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                 <div class="message-content">
                     <div class="message-text">Try telling me about your preferences, projects, or ask me anything. I'll remember it all for our future conversations!</div>
                     <div class="message-time">Just now</div>
@@ -551,7 +650,7 @@
         </div>
         
         <div class="typing-indicator" id="typing">
-            <div class="message-avatar" style="background: var(--accent-primary); color: white;">🧠</div>
+            <div class="message-avatar" style="background: var(--accent-primary);"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
             <div class="typing-dots">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -562,10 +661,10 @@
         <div class="input-area">
             <div class="input-container">
                 <div class="input-wrapper">
-                    <textarea 
-                        class="message-input" 
-                        id="messageInput" 
-                        placeholder="Message AI Memory Layer..."
+                    <textarea
+                        class="message-input"
+                        id="messageInput"
+                        placeholder="Message ChatGPT…"
                         rows="1"
                         onkeydown="handleKeyDown(event)"
                         oninput="autoResize(this)"
@@ -577,6 +676,7 @@
                 </div>
             </div>
         </div>
+        <div class="warning-footer">ChatGPT can make mistakes. Consider checking important information.</div>
     </div>
 
     <!-- Voice recording indicator -->
@@ -601,11 +701,21 @@
         let recognition = null;
         let isGenerating = false;
         let currentGenerationController = null;
+        const messageFeedback = {};
         // Get or create persistent conversation thread ID
         let conversationThreadId = localStorage.getItem('conversationThreadId');
         if (!conversationThreadId) {
             conversationThreadId = `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             localStorage.setItem('conversationThreadId', conversationThreadId);
+        }
+
+        // Start a new conversation with fresh context
+        function startNewConversation() {
+            if (confirm('Start a new conversation? This will clear the current conversation context.')) {
+                localStorage.removeItem('conversationThreadId');
+                localStorage.removeItem('conversations');
+                location.reload();
+            }
         }
 
         // Initialize
@@ -644,18 +754,33 @@
         function updateConversationsList() {
             const container = document.getElementById('conversations');
             container.innerHTML = '';
-            
-            conversations.forEach((conv, index) => {
+
+            conversations.forEach((conv) => {
                 const convDiv = document.createElement('div');
                 convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
                 convDiv.onclick = () => selectConversation(convDiv, conv.id);
-                
+
                 const timeStr = new Date(conv.lastMessage).toLocaleDateString([], {
                     month: 'short',
                     day: 'numeric'
                 });
-                
+
                 convDiv.innerHTML = `
+<<<<<<< HEAD
+                    <div class="conversation-details">
+                        <div class="conversation-title">${conv.title}</div>
+                        <div class="conversation-time" style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    </div>
+                    <div class="conversation-actions">
+                        <button class="rename-btn" title="Rename">✏️</button>
+                        <button class="delete-btn" title="Delete">🗑️</button>
+                    </div>
+                `;
+
+                convDiv.querySelector('.rename-btn').onclick = (e) => renameConversation(e, conv.id);
+                convDiv.querySelector('.delete-btn').onclick = (e) => deleteConversation(e, conv.id);
+
+=======
                     <div class="conversation-info">
                         <div>${conv.title}</div>
                         <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
@@ -665,23 +790,135 @@
                         <button class="conversation-action-btn" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">🗑️</button>
                     </div>
                 `;
-                
+
+>>>>>>> main
                 container.appendChild(convDiv);
             });
-            
+
             // Add current chat if no conversations exist
             if (conversations.length === 0) {
                 const currentDiv = document.createElement('div');
                 currentDiv.className = 'conversation-item active';
                 currentDiv.onclick = () => selectConversation(currentDiv, 'current');
                 currentDiv.innerHTML = `
-                    <div class="conversation-info">
-                        <div>Current Chat</div>
-                        <div style="font-size: 12px; opacity: 0.7;">Just now</div>
-                    </div>
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
                 `;
                 container.appendChild(currentDiv);
             }
+        }
+
+<<<<<<< HEAD
+        function renameConversation(event, conversationId) {
+            event.stopPropagation();
+            const convDiv = event.target.closest('.conversation-item');
+            const titleEl = convDiv.querySelector('.conversation-title');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = titleEl.textContent;
+            input.className = 'conversation-title-input';
+            convDiv.querySelector('.conversation-details').replaceChild(input, titleEl);
+            input.focus();
+            input.select();
+
+            const finish = () => {
+                const newTitle = input.value.trim() || 'Untitled';
+                const conv = conversations.find(c => c.id === conversationId);
+                if (conv) {
+                    conv.title = newTitle;
+                    saveConversations();
+                }
+                updateConversationsList();
+            };
+
+            input.addEventListener('blur', finish);
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    finish();
+                } else if (e.key === 'Escape') {
+                    updateConversationsList();
+                }
+            });
+        }
+
+        function deleteConversation(event, conversationId) {
+            event.stopPropagation();
+            conversations = conversations.filter(c => c.id !== conversationId);
+            saveConversations();
+            if (currentConversationId === conversationId) {
+                currentMessages = [];
+                startNewChat();
+            } else {
+=======
+        function renameConversation(id) {
+            const conv = conversations.find(c => c.id === id);
+            if (!conv) return;
+            const newTitle = prompt('Rename conversation:', conv.title);
+            if (newTitle && newTitle.trim()) {
+                conv.title = newTitle.trim();
+                saveConversations();
+>>>>>>> main
+                updateConversationsList();
+            }
+        }
+
+<<<<<<< HEAD
+=======
+        function deleteConversation(id) {
+            const index = conversations.findIndex(c => c.id === id);
+            if (index === -1) return;
+            if (!confirm('Delete this conversation?')) return;
+
+            const wasActive = currentConversationId === id;
+            conversations.splice(index, 1);
+            saveConversations();
+
+            if (wasActive) {
+                if (conversations.length > 0) {
+                    const nextConv = conversations[0];
+                    currentConversationId = nextConv.id;
+                    currentMessages = [...nextConv.messages];
+                    loadConversationMessages(nextConv.messages);
+                } else {
+                    currentConversationId = 'current';
+                    currentMessages = [];
+                    document.getElementById('messages').innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-avatar">🧠</div>
+                            <div class="message-content">
+                                <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            updateConversationsList();
+        }
+
+>>>>>>> main
+        // Theme management
+        function toggleTheme() {
+            const body = document.body;
+            const themeBtn = document.querySelector('.theme-toggle');
+            
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.setAttribute('data-theme', 'light');
+                themeBtn.textContent = '🌙';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                themeBtn.textContent = '☀️';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Load saved theme
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.setAttribute('data-theme', savedTheme);
+            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
         }
 
         // Auto-resize textarea
@@ -809,37 +1046,103 @@
             await sendMessage();
         }
 
+        // Edit user message
+        function editMessage(messageId) {
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+
+            const contentDiv = messageDiv.querySelector('.message-content');
+            const textDiv = contentDiv.querySelector('.message-text');
+            const originalText = textDiv.textContent;
+
+            // Create textarea for editing
+            const textarea = document.createElement('textarea');
+            textarea.className = 'edit-textarea';
+            textarea.value = originalText;
+            autoResize(textarea);
+
+            contentDiv.insertBefore(textarea, textDiv);
+            textDiv.style.display = 'none';
+
+            const actionsDiv = contentDiv.querySelector('.message-actions');
+            actionsDiv.innerHTML = '';
+
+            // Save edits
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'message-action-btn';
+            saveBtn.textContent = '💾 Save';
+            saveBtn.onclick = async () => {
+                const newText = textarea.value.trim();
+                if (!newText) return;
+
+                // Remove this user/assistant pair from history
+                const msgIndex = currentMessages.findIndex(m => m.id === messageId);
+                if (msgIndex !== -1) {
+                    currentMessages.splice(msgIndex, 1);
+                    if (currentMessages[msgIndex] && currentMessages[msgIndex].sender === 'assistant') {
+                        currentMessages.splice(msgIndex, 1);
+                    }
+                }
+
+                // Remove assistant response from DOM if present
+                const assistantDiv = messageDiv.nextElementSibling;
+                if (assistantDiv && assistantDiv.classList.contains('assistant')) {
+                    assistantDiv.remove();
+                }
+
+                // Remove the edited message
+                messageDiv.remove();
+
+                // Resend edited message
+                const input = document.getElementById('messageInput');
+                input.value = newText;
+                autoResize(input);
+                await sendMessage();
+            };
+
+            // Cancel editing
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'message-action-btn';
+            cancelBtn.textContent = '❌ Cancel';
+            cancelBtn.onclick = () => {
+                textarea.remove();
+                textDiv.style.display = '';
+                actionsDiv.innerHTML = `
+                    <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                        ✏️ Edit
+                    </button>
+                `;
+            };
+
+            actionsDiv.appendChild(saveBtn);
+            actionsDiv.appendChild(cancelBtn);
+        }
+
         // Send message
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-
+            
             if (!message) return;
-
+            
             if (!isConnected) {
                 console.warn('Not connected to API, attempting to send anyway...');
             }
-
+            
             // Add user message
             addMessage('user', message);
             input.value = '';
             autoResize(input);
-
+            
             // Show typing indicator with stop button
             isGenerating = true;
             showTyping(true);
-
+            
             // Create abort controller for this request
             currentGenerationController = new AbortController();
-
-            // Placeholder assistant message (not added to history yet)
-            const msgId = addMessage('assistant', '', null, true);
-            const messageDiv = document.getElementById(msgId);
-            const textElem = messageDiv.querySelector('.message-text');
-            let fullResponse = '';
-
+            
             try {
-                const response = await fetch(`${API_BASE}/chat/stream`, {
+                const response = await fetch(`${API_BASE}/chat`, {
                     signal: currentGenerationController.signal,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -851,59 +1154,37 @@
                         thread_id: conversationThreadId
                     })
                 });
-
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder();
-                let buffer = '';
-
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    buffer += decoder.decode(value, { stream: true });
-                    const parts = buffer.split('\n\n');
-                    buffer = parts.pop();
-                    for (const part of parts) {
-                        const line = part.trim();
-                        if (line.startsWith('data: ')) {
-                            const token = line.slice(6);
-                            if (token === '[DONE]') {
-                                break;
-                            }
-                            textElem.textContent += token;
-                            fullResponse += token;
-                        }
+                
+                const data = await response.json();
+                
+                // Simulate typing delay for better UX
+                setTimeout(async () => {
+                    isGenerating = false;
+                    showTyping(false);
+                    addMessage('assistant', data.response);
+                    updateMemoryCount();
+                    // Generate title after first assistant response
+                    if (currentMessages.length === 2) {
+                        console.log('Triggering title generation with', currentMessages.length, 'messages');
+                        await generateConversationTitle();
                     }
-                }
-
-                // Add to history after completion
-                currentMessages.push({
-                    sender: 'assistant',
-                    content: fullResponse,
-                    timestamp: new Date().toISOString()
-                });
-
-                updateMemoryCount();
-
-                if (currentMessages.length >= 3 && currentMessages.length <= 6) {
-                    console.log('Triggering title generation with', currentMessages.length, 'messages');
-                    generateConversationTitle();
-                }
-
+                }, 1000);
+                
             } catch (error) {
-                if (error.name !== 'AbortError') {
-                    textElem.textContent = '❌ Sorry, I encountered an error. Please check if the API server is running.';
-                }
-            } finally {
                 isGenerating = false;
                 showTyping(false);
+                if (error.name !== 'AbortError') {
+                    addMessage('assistant', '❌ Sorry, I encountered an error. Please check if the API server is running.');
+                }
+            } finally {
                 currentGenerationController = null;
             }
-
+            
             input.focus();
         }
 
         // Add message to chat
-        function addMessage(sender, content, messageId = null, skipHistory = false) {
+        function addMessage(sender, content, messageId = null) {
             const messagesContainer = document.getElementById('messages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
@@ -915,17 +1196,29 @@
             messageDiv.id = messageId;
             
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const avatar = sender === 'user' ? '👤' : '🧠';
+            const avatar = sender === 'user'
+                ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
             
             let actionsHTML = '';
             if (sender === 'assistant') {
                 actionsHTML = `
                     <div class="message-actions">
+                        <button class="message-action-btn feedback-btn up" onclick="sendFeedback('${messageId}', 'up')" title="Thumbs up">👍</button>
+                        <button class="message-action-btn feedback-btn down" onclick="sendFeedback('${messageId}', 'down')" title="Thumbs down">👎</button>
                         <button class="message-action-btn" onclick="regenerateMessage('${messageId}')" title="Regenerate response">
                             🔄 Regenerate
                         </button>
                         <button class="message-action-btn" onclick="copyMessage('${messageId}')" title="Copy to clipboard">
                             📋 Copy
+                        </button>
+                    </div>
+                `;
+            } else if (sender === 'user') {
+                actionsHTML = `
+                    <div class="message-actions">
+                        <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                            ✏️ Edit
                         </button>
                     </div>
                 `;
@@ -942,21 +1235,41 @@
             
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Track message for conversation history
+            currentMessages.push({
+                id: messageId,
+                sender: sender,
+                content: content,
+                timestamp: new Date().toISOString()
+            });
+            
+        }
 
-            if (!skipHistory) {
-                currentMessages.push({
-                    sender: sender,
-                    content: content,
-                    timestamp: new Date().toISOString()
+        async function sendFeedback(messageId, value) {
+            if (messageFeedback[messageId]) return;
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+            const upBtn = messageDiv.querySelector('.feedback-btn.up');
+            const downBtn = messageDiv.querySelector('.feedback-btn.down');
+            if (!upBtn || !downBtn) return;
+            upBtn.disabled = downBtn.disabled = true;
+            try {
+                await fetch(`${API_BASE}/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageId, value })
                 });
-
-                if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
-                    console.log('Triggering title generation with', currentMessages.length, 'messages');
-                    generateConversationTitle();
+                messageFeedback[messageId] = value;
+                if (value === 'up') {
+                    upBtn.classList.add('selected');
+                } else {
+                    downBtn.classList.add('selected');
                 }
+            } catch (err) {
+                console.error('Error sending feedback:', err);
+                upBtn.disabled = downBtn.disabled = false;
             }
-
-            return messageId;
         }
 
         // Generate conversation title using AI
@@ -964,10 +1277,10 @@
             try {
                 console.log('Generating title for messages:', currentMessages);
                 
-                const response = await fetch(`${API_BASE}/conversations/generate-title`, {
+                const response = await fetch(`${API_BASE}/conversation/title`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: currentMessages })
+                    body: JSON.stringify({ messages: currentMessages.slice(0, 2) })
                 });
                 
                 console.log('Title generation response status:', response.status);
@@ -981,6 +1294,7 @@
                     const existingConv = conversations.find(c => c.id === currentConversationId);
                     if (existingConv) {
                         existingConv.title = title;
+                        existingConv.messages = [...currentMessages];
                         existingConv.lastMessage = new Date().toISOString();
                     } else {
                         // Create new conversation entry
@@ -1014,6 +1328,7 @@
                     const existingConv = conversations.find(c => c.id === currentConversationId);
                     if (existingConv) {
                         existingConv.title = fallbackTitle;
+                        existingConv.messages = [...currentMessages];
                         existingConv.lastMessage = new Date().toISOString();
                     } else {
                         const newConv = {
@@ -1156,7 +1471,7 @@
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
-                    <div class="message-avatar">🧠</div>
+                    <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                     <div class="message-content">
                         <div class="message-text">👋 Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
                         <div class="message-time">Just now</div>
@@ -1198,7 +1513,7 @@
                 currentMessages = [];
                 document.getElementById('messages').innerHTML = `
                     <div class="message assistant">
-                        <div class="message-avatar">🧠</div>
+                        <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                         <div class="message-content">
                             <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
                             <div class="message-time">Just now</div>
@@ -1208,14 +1523,10 @@
             }
             
             // Update active state
-        document.querySelectorAll('.conversation-item').forEach(item => {
-            item.classList.remove('active');
-        });
-        element.classList.add('active');
-    }
-
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('collapsed');
+            document.querySelectorAll('.conversation-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            element.classList.add('active');
         }
 
         function loadConversationMessages(messages) {
@@ -1225,10 +1536,12 @@
             messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${msg.sender}`;
-                
+
                 const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const avatar = msg.sender === 'user' ? '👤' : '🧠';
-                
+                const avatar = msg.sender === 'user'
+                    ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                    : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
+
                 messageDiv.innerHTML = `
                     <div class="message-avatar">${avatar}</div>
                     <div class="message-content">
@@ -1241,50 +1554,6 @@
             });
             
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-        }
-
-        function renameConversation(id) {
-            const conv = conversations.find(c => c.id === id);
-            if (!conv) return;
-            const newTitle = prompt('Rename conversation:', conv.title);
-            if (newTitle && newTitle.trim()) {
-                conv.title = newTitle.trim();
-                saveConversations();
-                updateConversationsList();
-            }
-        }
-
-        function deleteConversation(id) {
-            const index = conversations.findIndex(c => c.id === id);
-            if (index === -1) return;
-            if (!confirm('Delete this conversation?')) return;
-
-            const wasActive = currentConversationId === id;
-            conversations.splice(index, 1);
-            saveConversations();
-
-            if (wasActive) {
-                if (conversations.length > 0) {
-                    const nextConv = conversations[0];
-                    currentConversationId = nextConv.id;
-                    currentMessages = [...nextConv.messages];
-                    loadConversationMessages(nextConv.messages);
-                } else {
-                    currentConversationId = 'current';
-                    currentMessages = [];
-                    document.getElementById('messages').innerHTML = `
-                        <div class="message assistant">
-                            <div class="message-avatar">🧠</div>
-                            <div class="message-content">
-                                <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
-                                <div class="message-time">Just now</div>
-                            </div>
-                        </div>
-                    `;
-                }
-            }
-
-            updateConversationsList();
         }
 
         // Search memories
@@ -1375,6 +1644,7 @@ ${Object.entries(data.memory_types).map(([type, count]) => `• ${type}: ${count
 
         // Initialize on load
         window.addEventListener('load', () => {
+            loadTheme();
             init();
         });
         

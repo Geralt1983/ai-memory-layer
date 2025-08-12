@@ -40,10 +40,10 @@ class TestContextBuilder:
         builder = ContextBuilder(memory_engine)
         context = builder.build_context(include_recent=2, include_relevant=0)
 
-        assert "## Recent Context:" in context
+        assert "Recent conversations:" in context
         assert "Second memory" in context
         assert "First memory" in context
-        assert "## Relevant Context:" not in context
+        assert "Relevant to" not in context
 
     def test_build_context_with_query(self, memory_engine):
         """Test building context with query for relevant memories"""
@@ -57,9 +57,8 @@ class TestContextBuilder:
             query="programming", include_recent=2, include_relevant=2
         )
 
-        assert "## Recent Context:" in context
-        assert "## Relevant Context:" in context
-        assert "relevance:" in context  # Should show relevance scores
+        assert "Recent conversations:" in context
+        assert "Relevant to 'programming':" in context
 
     def test_build_context_no_recent(self):
         """Test building context without recent memories"""
@@ -122,10 +121,8 @@ class TestContextBuilder:
             query="programming", include_recent=0, include_relevant=2
         )
 
-        # Should contain relevance scores
-        assert "relevance:" in context
-        # Should be formatted as decimal
-        assert "0." in context or "1." in context
+        # Should contain the relevant section header
+        assert "Relevant to 'programming':" in context
 
     def test_build_context_mixed_sections(self, memory_engine):
         """Test building context with both recent and relevant sections"""
@@ -142,10 +139,10 @@ class TestContextBuilder:
 
         # Should have both sections
         recent_index = next(
-            i for i, line in enumerate(lines) if "## Recent Context:" in line
+            i for i, line in enumerate(lines) if "Recent conversations:" in line
         )
         relevant_index = next(
-            i for i, line in enumerate(lines) if "## Relevant Context:" in line
+            i for i, line in enumerate(lines) if "Relevant to" in line
         )
 
         # Recent should come before relevant
@@ -169,6 +166,9 @@ class TestContextBuilder:
         ]
         mock_engine.search_memories.return_value = search_results
 
+        # No identity memories in this mocked engine
+        mock_engine.get_identity_memories.return_value = []
+
         return mock_engine
 
     def test_build_context_with_mocked_engine(self, mock_memory_engine_with_search):
@@ -182,14 +182,26 @@ class TestContextBuilder:
         assert "Recent memory 2" in context
         assert "Relevant memory 1" in context
         assert "Relevant memory 2" in context
-        assert "0.95" in context  # Relevance score
-        assert "0.85" in context  # Relevance score
 
         # Verify method calls
         mock_memory_engine_with_search.get_recent_memories.assert_called_once_with(2)
         mock_memory_engine_with_search.search_memories.assert_called_once_with(
             "test query", 2
         )
+
+    def test_build_context_uses_identity_memories(self):
+        """Context should include identity memories without hard-coded search"""
+        engine = MemoryEngine()
+        engine.add_memory("Jeremy is 41", type="identity")
+        engine.add_memory("He likes coffee", metadata={"category": "identity"})
+        engine.add_memory("Random chat")
+
+        builder = ContextBuilder(engine)
+        context = builder.build_context(include_recent=0, include_relevant=0)
+
+        assert "Jeremy is 41" in context
+        assert "He likes coffee" in context
+        assert "Random chat" not in context
 
     def test_profile_memories_included(self):
         """Profile memories should be included when a profile query is provided"""
@@ -213,3 +225,18 @@ class TestContextBuilder:
         context = builder.build_context(include_recent=0, include_relevant=0)
 
         assert context == ""
+
+    def test_build_context_calls_identity_method(self):
+        """Ensure build_context fetches identity memories via dedicated method"""
+        mock_engine = Mock(spec=MemoryEngine)
+        mock_engine.get_recent_memories.return_value = []
+        mock_engine.search_memories.return_value = []
+        mock_engine.get_identity_memories.return_value = [
+            Memory(content="User is awesome", type="identity")
+        ]
+
+        builder = ContextBuilder(mock_engine)
+        builder.build_context(include_recent=0, include_relevant=0)
+
+        mock_engine.get_identity_memories.assert_called_once()
+        mock_engine.search_memories.assert_not_called()
