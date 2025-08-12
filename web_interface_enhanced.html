@@ -359,6 +359,15 @@
             color: var(--text-secondary);
         }
 
+        .warning-footer {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 8px;
+            border-top: 1px solid var(--border-primary);
+            background: var(--bg-primary);
+        }
+
         .input-controls {
             display: flex;
             gap: 8px;
@@ -567,10 +576,10 @@
         <div class="input-area">
             <div class="input-container">
                 <div class="input-wrapper">
-                    <textarea 
-                        class="message-input" 
-                        id="messageInput" 
-                        placeholder="Message AI Memory Layer..."
+                    <textarea
+                        class="message-input"
+                        id="messageInput"
+                        placeholder="Message ChatGPT…"
                         rows="1"
                         onkeydown="handleKeyDown(event)"
                         oninput="autoResize(this)"
@@ -582,6 +591,7 @@
                 </div>
             </div>
         </div>
+        <div class="warning-footer">ChatGPT can make mistakes. Consider checking important information.</div>
     </div>
 
     <!-- Voice recording indicator -->
