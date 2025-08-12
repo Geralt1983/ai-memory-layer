@@ -113,6 +113,40 @@
             color: var(--text-secondary);
             transition: all 0.2s;
             border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .conversation-details {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .conversation-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .conversation-actions button:hover {
+            color: var(--text-primary);
+        }
+
+        .conversation-title-input {
+            width: 100%;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
         }
 
         .conversation-item:hover {
@@ -658,25 +692,34 @@
         function updateConversationsList() {
             const container = document.getElementById('conversations');
             container.innerHTML = '';
-            
-            conversations.forEach((conv, index) => {
+
+            conversations.forEach((conv) => {
                 const convDiv = document.createElement('div');
                 convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
                 convDiv.onclick = () => selectConversation(convDiv, conv.id);
-                
+
                 const timeStr = new Date(conv.lastMessage).toLocaleDateString([], {
                     month: 'short',
                     day: 'numeric'
                 });
-                
+
                 convDiv.innerHTML = `
-                    <div>${conv.title}</div>
-                    <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    <div class="conversation-details">
+                        <div class="conversation-title">${conv.title}</div>
+                        <div class="conversation-time" style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    </div>
+                    <div class="conversation-actions">
+                        <button class="rename-btn" title="Rename">✏️</button>
+                        <button class="delete-btn" title="Delete">🗑️</button>
+                    </div>
                 `;
-                
+
+                convDiv.querySelector('.rename-btn').onclick = (e) => renameConversation(e, conv.id);
+                convDiv.querySelector('.delete-btn').onclick = (e) => deleteConversation(e, conv.id);
+
                 container.appendChild(convDiv);
             });
-            
+
             // Add current chat if no conversations exist
             if (conversations.length === 0) {
                 const currentDiv = document.createElement('div');
@@ -687,6 +730,50 @@
                     <div style="font-size: 12px; opacity: 0.7;">Just now</div>
                 `;
                 container.appendChild(currentDiv);
+            }
+        }
+
+        function renameConversation(event, conversationId) {
+            event.stopPropagation();
+            const convDiv = event.target.closest('.conversation-item');
+            const titleEl = convDiv.querySelector('.conversation-title');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = titleEl.textContent;
+            input.className = 'conversation-title-input';
+            convDiv.querySelector('.conversation-details').replaceChild(input, titleEl);
+            input.focus();
+            input.select();
+
+            const finish = () => {
+                const newTitle = input.value.trim() || 'Untitled';
+                const conv = conversations.find(c => c.id === conversationId);
+                if (conv) {
+                    conv.title = newTitle;
+                    saveConversations();
+                }
+                updateConversationsList();
+            };
+
+            input.addEventListener('blur', finish);
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    finish();
+                } else if (e.key === 'Escape') {
+                    updateConversationsList();
+                }
+            });
+        }
+
+        function deleteConversation(event, conversationId) {
+            event.stopPropagation();
+            conversations = conversations.filter(c => c.id !== conversationId);
+            saveConversations();
+            if (currentConversationId === conversationId) {
+                currentMessages = [];
+                startNewChat();
+            } else {
+                updateConversationsList();
             }
         }
 
