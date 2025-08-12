@@ -17,6 +17,7 @@ from pathlib import Path
 from core.memory_engine import Memory
 from integrations.embeddings import OpenAIEmbeddings
 from storage.faiss_store import FaissVectorStore
+from optimized_memory_engine import OptimizedMemoryEngine
 from dotenv import load_dotenv
 import logging
 
@@ -30,7 +31,7 @@ class OptimizedMemoryLoader:
     instead of regenerating them, following 2025 best practices
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         load_dotenv()
         self.api_key = os.getenv("OPENAI_API_KEY")
         
@@ -39,7 +40,7 @@ class OptimizedMemoryLoader:
         memory_json_path: str,
         faiss_index_path: str,
         faiss_pkl_path: str
-    ) -> tuple[List[Memory], FaissVectorStore]:
+    ) -> tuple[List[Memory], Optional[FaissVectorStore]]:
         """
         Load memories with pre-computed FAISS embeddings
         
@@ -146,12 +147,11 @@ class OptimizedMemoryLoader:
         memory_json_path: str,
         faiss_index_path: str,
         faiss_pkl_path: str
-    ):
+    ) -> Optional[OptimizedMemoryEngine]:
         """
         Create a memory engine with optimized loading using pre-computed embeddings
         """
-        from core.memory_engine import MemoryEngine
-        
+
         logger.info("🏗️  Creating optimized MemoryEngine...")
         
         # Load memories and vector store
@@ -172,10 +172,12 @@ class OptimizedMemoryLoader:
             logger.warning("⚠️  No API key - search will be limited")
         
         # Create memory engine with pre-loaded data
-        memory_engine = MemoryEngine(
+        memory_engine = OptimizedMemoryEngine(
             vector_store=vector_store,
             embedding_provider=embeddings_provider,
-            persist_path=None  # Don't auto-save to prevent overwriting
+            persist_path=None,
+            auto_save=False,
+            precomputed_mode=True,
         )
         
         # Manually set the memories (bypass the loading process)
@@ -184,7 +186,11 @@ class OptimizedMemoryLoader:
         
         return memory_engine
     
-    def test_search_performance(self, memory_engine, test_queries: List[str] = None):
+    def test_search_performance(
+        self,
+        memory_engine: OptimizedMemoryEngine,
+        test_queries: Optional[List[str]] = None,
+    ) -> None:
         """Test search performance with the optimized loader"""
         if not test_queries:
             test_queries = [
@@ -214,7 +220,7 @@ class OptimizedMemoryLoader:
             except Exception as e:
                 logger.error(f"❌ Search failed for '{query}': {e}")
 
-def main():
+def main() -> Optional[OptimizedMemoryEngine]:
     """Main function to test the optimized loader"""
     if len(sys.argv) < 4:
         print("Usage: python optimized_memory_loader.py <memory.json> <faiss.index> <faiss.pkl>")

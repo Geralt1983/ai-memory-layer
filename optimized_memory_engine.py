@@ -8,7 +8,7 @@ import json
 import os
 import numpy as np
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, cast
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -167,7 +167,7 @@ class OptimizedMemoryEngine(MemoryEngine):
         except:
             return datetime.now()
     
-    def _verify_faiss_alignment(self):
+    def _verify_faiss_alignment(self) -> None:
         """Verify alignment between memories and FAISS index"""
         try:
             if hasattr(self.vector_store, 'index') and hasattr(self.vector_store.index, 'ntotal'):
@@ -273,7 +273,7 @@ class OptimizedMemoryEngine(MemoryEngine):
             logger.info("Auto-save disabled - skipping memory save to prevent overwrite")
             return True
         
-        return super().save_memories(path)
+        return cast(bool, super().save_memories(path))
     
     def get_statistics(self) -> Dict[str, Any]:
         """Get enhanced statistics for the optimized memory engine"""
