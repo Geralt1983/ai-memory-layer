@@ -100,8 +100,24 @@
 
         .conversations {
             flex: 1;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
             padding: 8px;
+        }
+
+        .conversation-search {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 8px;
+            border: 1px solid var(--border-primary);
+            border-radius: 8px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .conversation-list {
+            flex: 1;
+            overflow-y: auto;
         }
 
         .conversation-item {
@@ -502,10 +518,13 @@
             <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
         </div>
         
-        <div class="conversations" id="conversations">
-            <div class="conversation-item active" onclick="selectConversation(this)">
-                <div>Current Chat</div>
-                <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+        <div class="conversations">
+            <input type="text" id="conversation-search" class="conversation-search" placeholder="Search conversations...">
+            <div class="conversation-list" id="conversations">
+                <div class="conversation-item active" onclick="selectConversation(this)">
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                </div>
             </div>
         </div>
         
@@ -606,6 +625,7 @@
         let recognition = null;
         let isGenerating = false;
         let currentGenerationController = null;
+        let conversationSearchQuery = '';
         // Get or create persistent conversation thread ID
         let conversationThreadId = localStorage.getItem('conversationThreadId');
         if (!conversationThreadId) {
@@ -629,12 +649,20 @@
             loadConversations();
             initVoiceRecognition();
             document.getElementById('messageInput').focus();
-            
+
             // Add cursor blink effect to empty input
             const input = document.getElementById('messageInput');
             if (!input.value) {
                 input.classList.add('cursor-blink');
             }
+
+            const searchInput = document.getElementById('conversation-search');
+            const savedQuery = localStorage.getItem('conversationSearch') || '';
+            searchInput.value = savedQuery;
+            conversationSearchQuery = savedQuery;
+            if (savedQuery) updateConversationsList();
+            const debouncedFilter = debounce(filterConversations, 300);
+            searchInput.addEventListener('input', (e) => debouncedFilter(e.target.value));
         }
 
         // Load conversations from localStorage
@@ -658,25 +686,35 @@
         function updateConversationsList() {
             const container = document.getElementById('conversations');
             container.innerHTML = '';
-            
-            conversations.forEach((conv, index) => {
-                const convDiv = document.createElement('div');
-                convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
-                convDiv.onclick = () => selectConversation(convDiv, conv.id);
-                
-                const timeStr = new Date(conv.lastMessage).toLocaleDateString([], {
-                    month: 'short',
-                    day: 'numeric'
+
+            const query = conversationSearchQuery.toLowerCase();
+
+            conversations
+                .filter(conv => {
+                    if (!query) return true;
+                    const lastMsg = conv.messages && conv.messages.length
+                        ? conv.messages[conv.messages.length - 1].content.toLowerCase()
+                        : '';
+                    return conv.title.toLowerCase().includes(query) || lastMsg.includes(query);
+                })
+                .forEach((conv, index) => {
+                    const convDiv = document.createElement('div');
+                    convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
+                    convDiv.onclick = () => selectConversation(convDiv, conv.id);
+
+                    const timeStr = new Date(conv.lastMessage).toLocaleDateString([], {
+                        month: 'short',
+                        day: 'numeric'
+                    });
+
+                    convDiv.innerHTML = `
+                        <div>${conv.title}</div>
+                        <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    `;
+
+                    container.appendChild(convDiv);
                 });
-                
-                convDiv.innerHTML = `
-                    <div>${conv.title}</div>
-                    <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
-                `;
-                
-                container.appendChild(convDiv);
-            });
-            
+
             // Add current chat if no conversations exist
             if (conversations.length === 0) {
                 const currentDiv = document.createElement('div');
@@ -688,6 +726,20 @@
                 `;
                 container.appendChild(currentDiv);
             }
+        }
+
+        function filterConversations(query) {
+            conversationSearchQuery = query;
+            localStorage.setItem('conversationSearch', query);
+            updateConversationsList();
+        }
+
+        function debounce(func, delay) {
+            let timeout;
+            return (...args) => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func(...args), delay);
+            };
         }
 
         // Theme management
