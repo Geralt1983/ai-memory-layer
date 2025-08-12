@@ -519,7 +519,6 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                     frequency_penalty=0.25,  # Reduce repetition
                     max_tokens=1200  # Allow for more detailed responses
                 )
-
                 assistant_response = response.choices[0].message.content
 
                 self.logger.info(
@@ -588,34 +587,80 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                 )
                 raise
 
-    # ------------------------------------------------------------------
-    # Backwards compatibility helpers
-    # ------------------------------------------------------------------
-    def chat_with_memory(
+    def chat_stream(
         self,
         message: str,
+        thread_id: str = "default",
         system_prompt: Optional[str] = None,
-        include_recent: int = 5,
-        include_relevant: int = 5,
         remember_response: bool = True,
-    ) -> str:
-        """Compatibility wrapper mimicking the older OpenAIIntegration API.
+        temperature: float = 0.7,
+    ):
+        """Stream GPT-4o response tokens incrementally"""
 
-        Older versions of the project exposed a ``chat_with_memory`` method
-        which accepted ``include_recent`` and ``include_relevant`` parameters.
-        The refactored implementation collapsed this into the ``chat`` method
-        which automatically handles context.  This wrapper simply delegates to
-        :meth:`chat` while ignoring the extra parameters so that existing code
-        continues to function.
-        """
-
-        response, _ = self.chat(
-            message=message,
-            thread_id="default",
-            system_prompt=system_prompt,
-            remember_response=remember_response,
+        self.logger.info(
+            f"Processing streaming chat request for thread {thread_id}",
+            extra={"message_length": len(message), "thread_id": thread_id},
         )
-        return response
+
+        messages = self._build_messages_array(
+            thread_id=thread_id,
+            user_message=message,
+            system_prompt=system_prompt,
+        )
+
+        assistant_response = ""
+
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                top_p=1.0,
+                presence_penalty=0.5,
+                frequency_penalty=0.25,
+                max_tokens=1200,
+                stream=True,
+            )
+
+            for chunk in stream:
+                token = chunk.choices[0].delta.get("content", "")
+                if token:
+                    assistant_response += token
+                    yield token
+
+            if remember_response:
+                self._add_to_conversation(thread_id, "user", message)
+                self._add_to_conversation(thread_id, "assistant", assistant_response)
+                self._detect_and_store_corrections(message, assistant_response, thread_id)
+
+                conversation_title = None
+                if thread_id and len(self.conversations.get(thread_id, [])) <= 2:
+                    conversation_title = self._extract_conversation_title(
+                        message, assistant_response
+                    )
+
+                self.memory_engine.add_memory(
+                    content=f"User: {message}",
+                    role="user",
+                    thread_id=thread_id,
+                    title=conversation_title,
+                    type="history",
+                    importance=0.7,
+                    metadata={"type": "user_message", "thread_id": thread_id},
+                )
+                self.memory_engine.add_memory(
+                    content=f"Assistant: {assistant_response}",
+                    role="assistant",
+                    thread_id=thread_id,
+                    title=conversation_title,
+                    type="history",
+                    importance=0.6,
+                    metadata={"type": "assistant_response", "thread_id": thread_id},
+                )
+
+        except Exception as e:
+            self.logger.error(f"OpenAI streaming error: {e}", exc_info=True)
+            raise
     
     def get_conversation_history(self, thread_id: str) -> List[Dict[str, str]]:
         """Get full conversation history for a thread"""
@@ -712,3 +757,32 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         
         # Default: use first 50 chars of user message
         return user_message[:50].strip() + "..." if len(user_message) > 50 else user_message
+
+    # ------------------------------------------------------------------
+    # Backwards compatibility helpers
+    # ------------------------------------------------------------------
+    def chat_with_memory(
+        self,
+        message: str,
+        system_prompt: Optional[str] = None,
+        include_recent: int = 5,
+        include_relevant: int = 5,
+        remember_response: bool = True,
+    ) -> str:
+        """Compatibility wrapper mimicking the older OpenAIIntegration API.
+
+        Older versions of the project exposed a ``chat_with_memory`` method
+        which accepted ``include_recent`` and ``include_relevant`` parameters.
+        The refactored implementation collapsed this into the ``chat`` method
+        which automatically handles context.  This wrapper simply delegates to
+        :meth:`chat` while ignoring the extra parameters so that existing code
+        continues to function.
+        """
+
+        response, _ = self.chat(
+            message=message,
+            thread_id="default",
+            system_prompt=system_prompt,
+            remember_response=remember_response,
+        )
+        return response

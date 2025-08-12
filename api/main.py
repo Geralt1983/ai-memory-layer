@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 import uvicorn
 import time
 
@@ -398,8 +398,8 @@ async def clear_memories(engine: MemoryEngine = Depends(get_memory_engine)):
 @app.post("/chat", response_model=ChatResponse)
 async def chat_with_memory(
     chat_data: ChatRequest,
-    openai_integration: DirectOpenAIChat = Depends(get_openai_integration),
-    request: Request = None,
+    direct_chat: DirectOpenAIChat = Depends(get_direct_openai_chat),
+    request: Request = None
 ):
     """Chat endpoint using the OpenAI integration."""
     start_time = time.time()
@@ -450,6 +450,29 @@ async def chat_with_memory(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Chat failed: {str(e)}",
         )
+
+
+@app.post("/chat/stream")
+async def chat_with_memory_stream(
+    chat_data: ChatRequest, direct_chat: DirectOpenAIChat = Depends(get_direct_openai_chat)
+):
+    """Stream chat response tokens incrementally"""
+
+    def event_generator():
+        try:
+            for token in direct_chat.chat_stream(
+                message=chat_data.message,
+                thread_id=chat_data.thread_id,
+                system_prompt=chat_data.system_prompt,
+                remember_response=chat_data.remember_response,
+            ):
+                yield f"data: {token}\n\n"
+            yield "data: [DONE]\n\n"
+        except Exception as e:
+            logger.error("Streaming chat failed", extra={"error": str(e)}, exc_info=True)
+            yield f"data: [ERROR] {str(e)}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 # Stats endpoint
