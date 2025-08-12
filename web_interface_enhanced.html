@@ -6,7 +6,7 @@
     <title>AI Memory Layer - Enhanced Chat</title>
     <style>
         :root {
-            /* Light theme */
+            /* Light theme - ChatGPT colors */
             --bg-primary: #ffffff;
             --bg-secondary: #f7f7f8;
             --bg-tertiary: #ececec;
@@ -15,23 +15,23 @@
             --border-primary: #d9d9e3;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --user-bg: #10a37f;
+            --user-bg: #ffffff;
             --assistant-bg: #f7f7f8;
             --shadow: rgba(0, 0, 0, 0.1);
         }
 
         [data-theme="dark"] {
-            /* Dark theme */
-            --bg-primary: #212121;
-            --bg-secondary: #2f2f2f;
-            --bg-tertiary: #3c3c3c;
+            /* Dark theme - ChatGPT colors */
+            --bg-primary: #343541;
+            --bg-secondary: #40414f;
+            --bg-tertiary: #202123;
             --text-primary: #ececec;
             --text-secondary: #9c9c9c;
             --border-primary: #4a4a4a;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --user-bg: #10a37f;
-            --assistant-bg: #2f2f2f;
+            --user-bg: #343541;
+            --assistant-bg: #444654;
             --shadow: rgba(0, 0, 0, 0.3);
         }
 
@@ -42,7 +42,7 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            font-family: "Inter", "Söhne", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             height: 100vh;
@@ -118,37 +118,6 @@
             align-items: center;
         }
 
-        .conversation-details {
-            display: flex;
-            flex-direction: column;
-            flex: 1;
-        }
-
-        .conversation-actions {
-            display: flex;
-            gap: 4px;
-        }
-
-        .conversation-actions button {
-            background: none;
-            border: none;
-            cursor: pointer;
-            color: var(--text-secondary);
-        }
-
-        .conversation-actions button:hover {
-            color: var(--text-primary);
-        }
-
-        .conversation-title-input {
-            width: 100%;
-            font-size: 14px;
-            color: var(--text-primary);
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-primary);
-            border-radius: 4px;
-        }
-
         .conversation-item:hover {
             background: var(--bg-tertiary);
             color: var(--text-primary);
@@ -157,6 +126,40 @@
         .conversation-item.active {
             background: var(--accent-primary);
             color: white;
+        }
+
+        .conversation-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: none;
+            gap: 4px;
+        }
+
+        .conversation-item:hover .conversation-actions {
+            display: flex;
+        }
+
+        .conversation-action-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .conversation-action-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .conversation-item.active .conversation-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .sidebar-footer {
@@ -255,6 +258,12 @@
             flex-shrink: 0;
         }
 
+        .message-avatar img {
+            width: 20px;
+            height: 20px;
+            filter: invert(1);
+        }
+
         .message.user .message-avatar {
             background: var(--user-bg);
             color: white;
@@ -315,6 +324,12 @@
         .message-action-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        .feedback-btn.selected {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
         }
 
         .typing-indicator {
@@ -391,6 +406,15 @@
 
         .message-input::placeholder {
             color: var(--text-secondary);
+        }
+
+        .warning-footer {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 8px;
+            border-top: 1px solid var(--border-primary);
+            background: var(--bg-primary);
         }
 
         .input-controls {
@@ -538,8 +562,10 @@
         
         <div class="conversations" id="conversations">
             <div class="conversation-item active" onclick="selectConversation(this)">
-                <div>Current Chat</div>
-                <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                <div class="conversation-info">
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                </div>
             </div>
         </div>
         
@@ -574,14 +600,14 @@
         
         <div class="chat-messages" id="messages">
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                 <div class="message-content">
                     <div class="message-text">👋 Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
                     <div class="message-time">Just now</div>
                 </div>
             </div>
             <div class="message assistant">
-                <div class="message-avatar">🧠</div>
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                 <div class="message-content">
                     <div class="message-text">Try telling me about your preferences, projects, or ask me anything. I'll remember it all for our future conversations!</div>
                     <div class="message-time">Just now</div>
@@ -590,7 +616,7 @@
         </div>
         
         <div class="typing-indicator" id="typing">
-            <div class="message-avatar" style="background: var(--accent-primary); color: white;">🧠</div>
+            <div class="message-avatar" style="background: var(--accent-primary);"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
             <div class="typing-dots">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -601,10 +627,10 @@
         <div class="input-area">
             <div class="input-container">
                 <div class="input-wrapper">
-                    <textarea 
-                        class="message-input" 
-                        id="messageInput" 
-                        placeholder="Message AI Memory Layer..."
+                    <textarea
+                        class="message-input"
+                        id="messageInput"
+                        placeholder="Message ChatGPT…"
                         rows="1"
                         onkeydown="handleKeyDown(event)"
                         oninput="autoResize(this)"
@@ -616,6 +642,7 @@
                 </div>
             </div>
         </div>
+        <div class="warning-footer">ChatGPT can make mistakes. Consider checking important information.</div>
     </div>
 
     <!-- Voice recording indicator -->
@@ -640,6 +667,7 @@
         let recognition = null;
         let isGenerating = false;
         let currentGenerationController = null;
+        const messageFeedback = {};
         // Get or create persistent conversation thread ID
         let conversationThreadId = localStorage.getItem('conversationThreadId');
         if (!conversationThreadId) {
@@ -692,8 +720,8 @@
         function updateConversationsList() {
             const container = document.getElementById('conversations');
             container.innerHTML = '';
-
-            conversations.forEach((conv) => {
+            
+            conversations.forEach((conv, index) => {
                 const convDiv = document.createElement('div');
                 convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
                 convDiv.onclick = () => selectConversation(convDiv, conv.id);
@@ -704,22 +732,19 @@
                 });
 
                 convDiv.innerHTML = `
-                    <div class="conversation-details">
-                        <div class="conversation-title">${conv.title}</div>
-                        <div class="conversation-time" style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    <div class="conversation-info">
+                        <div>${conv.title}</div>
+                        <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
                     </div>
                     <div class="conversation-actions">
-                        <button class="rename-btn" title="Rename">✏️</button>
-                        <button class="delete-btn" title="Delete">🗑️</button>
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); renameConversation('${conv.id}')">✏️</button>
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">🗑️</button>
                     </div>
                 `;
 
-                convDiv.querySelector('.rename-btn').onclick = (e) => renameConversation(e, conv.id);
-                convDiv.querySelector('.delete-btn').onclick = (e) => deleteConversation(e, conv.id);
-
                 container.appendChild(convDiv);
             });
-
+            
             // Add current chat if no conversations exist
             if (conversations.length === 0) {
                 const currentDiv = document.createElement('div');
@@ -733,48 +758,48 @@
             }
         }
 
-        function renameConversation(event, conversationId) {
-            event.stopPropagation();
-            const convDiv = event.target.closest('.conversation-item');
-            const titleEl = convDiv.querySelector('.conversation-title');
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.value = titleEl.textContent;
-            input.className = 'conversation-title-input';
-            convDiv.querySelector('.conversation-details').replaceChild(input, titleEl);
-            input.focus();
-            input.select();
-
-            const finish = () => {
-                const newTitle = input.value.trim() || 'Untitled';
-                const conv = conversations.find(c => c.id === conversationId);
-                if (conv) {
-                    conv.title = newTitle;
-                    saveConversations();
-                }
-                updateConversationsList();
-            };
-
-            input.addEventListener('blur', finish);
-            input.addEventListener('keydown', e => {
-                if (e.key === 'Enter') {
-                    finish();
-                } else if (e.key === 'Escape') {
-                    updateConversationsList();
-                }
-            });
-        }
-
-        function deleteConversation(event, conversationId) {
-            event.stopPropagation();
-            conversations = conversations.filter(c => c.id !== conversationId);
-            saveConversations();
-            if (currentConversationId === conversationId) {
-                currentMessages = [];
-                startNewChat();
-            } else {
+        function renameConversation(id) {
+            const conv = conversations.find(c => c.id === id);
+            if (!conv) return;
+            const newTitle = prompt('Rename conversation:', conv.title);
+            if (newTitle && newTitle.trim()) {
+                conv.title = newTitle.trim();
+                saveConversations();
                 updateConversationsList();
             }
+        }
+
+        function deleteConversation(id) {
+            const index = conversations.findIndex(c => c.id === id);
+            if (index === -1) return;
+            if (!confirm('Delete this conversation?')) return;
+
+            const wasActive = currentConversationId === id;
+            conversations.splice(index, 1);
+            saveConversations();
+
+            if (wasActive) {
+                if (conversations.length > 0) {
+                    const nextConv = conversations[0];
+                    currentConversationId = nextConv.id;
+                    currentMessages = [...nextConv.messages];
+                    loadConversationMessages(nextConv.messages);
+                } else {
+                    currentConversationId = 'current';
+                    currentMessages = [];
+                    document.getElementById('messages').innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-avatar">🧠</div>
+                            <div class="message-content">
+                                <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            updateConversationsList();
         }
 
         // Theme management
@@ -925,6 +950,78 @@
             await sendMessage();
         }
 
+        // Edit user message
+        function editMessage(messageId) {
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+
+            const contentDiv = messageDiv.querySelector('.message-content');
+            const textDiv = contentDiv.querySelector('.message-text');
+            const originalText = textDiv.textContent;
+
+            // Create textarea for editing
+            const textarea = document.createElement('textarea');
+            textarea.className = 'edit-textarea';
+            textarea.value = originalText;
+            autoResize(textarea);
+
+            contentDiv.insertBefore(textarea, textDiv);
+            textDiv.style.display = 'none';
+
+            const actionsDiv = contentDiv.querySelector('.message-actions');
+            actionsDiv.innerHTML = '';
+
+            // Save edits
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'message-action-btn';
+            saveBtn.textContent = '💾 Save';
+            saveBtn.onclick = async () => {
+                const newText = textarea.value.trim();
+                if (!newText) return;
+
+                // Remove this user/assistant pair from history
+                const msgIndex = currentMessages.findIndex(m => m.id === messageId);
+                if (msgIndex !== -1) {
+                    currentMessages.splice(msgIndex, 1);
+                    if (currentMessages[msgIndex] && currentMessages[msgIndex].sender === 'assistant') {
+                        currentMessages.splice(msgIndex, 1);
+                    }
+                }
+
+                // Remove assistant response from DOM if present
+                const assistantDiv = messageDiv.nextElementSibling;
+                if (assistantDiv && assistantDiv.classList.contains('assistant')) {
+                    assistantDiv.remove();
+                }
+
+                // Remove the edited message
+                messageDiv.remove();
+
+                // Resend edited message
+                const input = document.getElementById('messageInput');
+                input.value = newText;
+                autoResize(input);
+                await sendMessage();
+            };
+
+            // Cancel editing
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'message-action-btn';
+            cancelBtn.textContent = '❌ Cancel';
+            cancelBtn.onclick = () => {
+                textarea.remove();
+                textDiv.style.display = '';
+                actionsDiv.innerHTML = `
+                    <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                        ✏️ Edit
+                    </button>
+                `;
+            };
+
+            actionsDiv.appendChild(saveBtn);
+            actionsDiv.appendChild(cancelBtn);
+        }
+
         // Send message
         async function sendMessage() {
             const input = document.getElementById('messageInput');
@@ -965,15 +1062,15 @@
                 const data = await response.json();
                 
                 // Simulate typing delay for better UX
-                setTimeout(() => {
+                setTimeout(async () => {
                     isGenerating = false;
                     showTyping(false);
                     addMessage('assistant', data.response);
                     updateMemoryCount();
-                    // Trigger title generation if this is one of the first few messages
-                    if (currentMessages.length <= 6) {
+                    // Generate title after first assistant response
+                    if (currentMessages.length === 2) {
                         console.log('Triggering title generation with', currentMessages.length, 'messages');
-                        generateConversationTitle();
+                        await generateConversationTitle();
                     }
                 }, 1000);
                 
@@ -1003,17 +1100,29 @@
             messageDiv.id = messageId;
             
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const avatar = sender === 'user' ? '👤' : '🧠';
+            const avatar = sender === 'user'
+                ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
             
             let actionsHTML = '';
             if (sender === 'assistant') {
                 actionsHTML = `
                     <div class="message-actions">
+                        <button class="message-action-btn feedback-btn up" onclick="sendFeedback('${messageId}', 'up')" title="Thumbs up">👍</button>
+                        <button class="message-action-btn feedback-btn down" onclick="sendFeedback('${messageId}', 'down')" title="Thumbs down">👎</button>
                         <button class="message-action-btn" onclick="regenerateMessage('${messageId}')" title="Regenerate response">
                             🔄 Regenerate
                         </button>
                         <button class="message-action-btn" onclick="copyMessage('${messageId}')" title="Copy to clipboard">
                             📋 Copy
+                        </button>
+                    </div>
+                `;
+            } else if (sender === 'user') {
+                actionsHTML = `
+                    <div class="message-actions">
+                        <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                            ✏️ Edit
                         </button>
                     </div>
                 `;
@@ -1033,15 +1142,37 @@
             
             // Track message for conversation history
             currentMessages.push({
+                id: messageId,
                 sender: sender,
                 content: content,
                 timestamp: new Date().toISOString()
             });
             
-            // Generate title after we have enough context (2+ exchanges)
-            if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
-                console.log('Triggering title generation with', currentMessages.length, 'messages');
-                generateConversationTitle();
+        }
+
+        async function sendFeedback(messageId, value) {
+            if (messageFeedback[messageId]) return;
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+            const upBtn = messageDiv.querySelector('.feedback-btn.up');
+            const downBtn = messageDiv.querySelector('.feedback-btn.down');
+            if (!upBtn || !downBtn) return;
+            upBtn.disabled = downBtn.disabled = true;
+            try {
+                await fetch(`${API_BASE}/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageId, value })
+                });
+                messageFeedback[messageId] = value;
+                if (value === 'up') {
+                    upBtn.classList.add('selected');
+                } else {
+                    downBtn.classList.add('selected');
+                }
+            } catch (err) {
+                console.error('Error sending feedback:', err);
+                upBtn.disabled = downBtn.disabled = false;
             }
         }
 
@@ -1050,10 +1181,10 @@
             try {
                 console.log('Generating title for messages:', currentMessages);
                 
-                const response = await fetch(`${API_BASE}/conversations/generate-title`, {
+                const response = await fetch(`${API_BASE}/conversation/title`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: currentMessages })
+                    body: JSON.stringify({ messages: currentMessages.slice(0, 2) })
                 });
                 
                 console.log('Title generation response status:', response.status);
@@ -1067,6 +1198,7 @@
                     const existingConv = conversations.find(c => c.id === currentConversationId);
                     if (existingConv) {
                         existingConv.title = title;
+                        existingConv.messages = [...currentMessages];
                         existingConv.lastMessage = new Date().toISOString();
                     } else {
                         // Create new conversation entry
@@ -1100,6 +1232,7 @@
                     const existingConv = conversations.find(c => c.id === currentConversationId);
                     if (existingConv) {
                         existingConv.title = fallbackTitle;
+                        existingConv.messages = [...currentMessages];
                         existingConv.lastMessage = new Date().toISOString();
                     } else {
                         const newConv = {
@@ -1242,7 +1375,7 @@
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
-                    <div class="message-avatar">🧠</div>
+                    <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                     <div class="message-content">
                         <div class="message-text">👋 Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
                         <div class="message-time">Just now</div>
@@ -1284,7 +1417,7 @@
                 currentMessages = [];
                 document.getElementById('messages').innerHTML = `
                     <div class="message assistant">
-                        <div class="message-avatar">🧠</div>
+                        <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                         <div class="message-content">
                             <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
                             <div class="message-time">Just now</div>
@@ -1307,10 +1440,12 @@
             messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${msg.sender}`;
-                
+
                 const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const avatar = msg.sender === 'user' ? '👤' : '🧠';
-                
+                const avatar = msg.sender === 'user'
+                    ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                    : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
+
                 messageDiv.innerHTML = `
                     <div class="message-avatar">${avatar}</div>
                     <div class="message-content">

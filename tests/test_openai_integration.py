@@ -27,7 +27,9 @@ class TestOpenAIIntegration:
         assert integration.memory_engine == memory_engine
         mock_openai.assert_called_once_with(api_key="test-key")
         mock_embeddings.assert_called_once_with("test-key", "text-embedding-3-small")
-        mock_context_builder.assert_called_once_with(memory_engine)
+        mock_context_builder.assert_called_once_with(
+            memory_engine, profile_query="Jeremy wife Ashley kids dogs age"
+        )
 
     @patch("integrations.openai_integration.OpenAI")
     @patch("integrations.openai_integration.OpenAIEmbeddings")
