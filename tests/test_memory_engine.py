@@ -201,3 +201,19 @@ class TestMemoryEngine:
         contents = [m.content for m in engine2.memories]
         assert "Persistent memory 1" in contents
         assert "Persistent memory 2" in contents
+
+    def test_identity_corrections_search(self, memory_engine):
+        """Identity corrections should be returned regardless of relevance."""
+        correction = memory_engine.add_identity_correction("User's name is Alice")
+        other_memory = memory_engine.add_memory("Some unrelated memory about Python")
+
+        # Simulate vector store search returning only the unrelated memory
+        with patch.object(memory_engine.vector_store, "search", return_value=[other_memory]):
+            results = memory_engine.search_memories("irrelevant query", k=1)
+
+        # Ensure the correction is stored and retrievable
+        corrections = memory_engine.get_identity_corrections()
+        assert correction in corrections
+
+        # Identity correction should be included even though it wasn't in search results
+        assert correction in results

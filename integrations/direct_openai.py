@@ -12,6 +12,7 @@ from openai import (
 import json
 import re
 from datetime import datetime
+from types import SimpleNamespace
 from core.memory_engine import Memory, MemoryEngine
 from core.logging_config import get_logger, monitor_performance
 from .embeddings import OpenAIEmbeddings
@@ -47,6 +48,14 @@ class DirectOpenAIChat:
         
         # Load optimized system prompt
         self.base_system_prompt = self._load_system_prompt()
+
+        # Simple context builder for backwards compatibility
+        self.context_builder = SimpleNamespace(
+            build_context=lambda **kwargs: ""
+        )
+
+        # Track how many messages were sent to OpenAI for debugging
+        self.last_messages_count = 0
         
         # User identity profile for GPT-4o personalization
         self.user_identity = {
@@ -489,6 +498,9 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
             user_message=message,
             system_prompt=system_prompt
         )
+
+        # Record how many messages were sent for external inspection
+        self.last_messages_count = len(messages)
         
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -575,6 +587,35 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                     f"OpenAI API error: {e}", exc_info=True, extra={"thread_id": thread_id, "attempt": attempt}
                 )
                 raise
+
+    # ------------------------------------------------------------------
+    # Backwards compatibility helpers
+    # ------------------------------------------------------------------
+    def chat_with_memory(
+        self,
+        message: str,
+        system_prompt: Optional[str] = None,
+        include_recent: int = 5,
+        include_relevant: int = 5,
+        remember_response: bool = True,
+    ) -> str:
+        """Compatibility wrapper mimicking the older OpenAIIntegration API.
+
+        Older versions of the project exposed a ``chat_with_memory`` method
+        which accepted ``include_recent`` and ``include_relevant`` parameters.
+        The refactored implementation collapsed this into the ``chat`` method
+        which automatically handles context.  This wrapper simply delegates to
+        :meth:`chat` while ignoring the extra parameters so that existing code
+        continues to function.
+        """
+
+        response, _ = self.chat(
+            message=message,
+            thread_id="default",
+            system_prompt=system_prompt,
+            remember_response=remember_response,
+        )
+        return response
     
     def get_conversation_history(self, thread_id: str) -> List[Dict[str, str]]:
         """Get full conversation history for a thread"""
