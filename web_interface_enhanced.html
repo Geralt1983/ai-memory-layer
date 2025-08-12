@@ -113,6 +113,9 @@
             color: var(--text-secondary);
             transition: all 0.2s;
             border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .conversation-item:hover {
@@ -123,6 +126,40 @@
         .conversation-item.active {
             background: var(--accent-primary);
             color: white;
+        }
+
+        .conversation-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: none;
+            gap: 4px;
+        }
+
+        .conversation-item:hover .conversation-actions {
+            display: flex;
+        }
+
+        .conversation-action-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .conversation-action-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .conversation-item.active .conversation-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .sidebar-footer {
@@ -504,8 +541,10 @@
         
         <div class="conversations" id="conversations">
             <div class="conversation-item active" onclick="selectConversation(this)">
-                <div>Current Chat</div>
-                <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                <div class="conversation-info">
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                </div>
             </div>
         </div>
         
@@ -663,17 +702,23 @@
                 const convDiv = document.createElement('div');
                 convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
                 convDiv.onclick = () => selectConversation(convDiv, conv.id);
-                
+
                 const timeStr = new Date(conv.lastMessage).toLocaleDateString([], {
                     month: 'short',
                     day: 'numeric'
                 });
-                
+
                 convDiv.innerHTML = `
-                    <div>${conv.title}</div>
-                    <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    <div class="conversation-info">
+                        <div>${conv.title}</div>
+                        <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    </div>
+                    <div class="conversation-actions">
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); renameConversation('${conv.id}')">✏️</button>
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">🗑️</button>
+                    </div>
                 `;
-                
+
                 container.appendChild(convDiv);
             });
             
@@ -688,6 +733,50 @@
                 `;
                 container.appendChild(currentDiv);
             }
+        }
+
+        function renameConversation(id) {
+            const conv = conversations.find(c => c.id === id);
+            if (!conv) return;
+            const newTitle = prompt('Rename conversation:', conv.title);
+            if (newTitle && newTitle.trim()) {
+                conv.title = newTitle.trim();
+                saveConversations();
+                updateConversationsList();
+            }
+        }
+
+        function deleteConversation(id) {
+            const index = conversations.findIndex(c => c.id === id);
+            if (index === -1) return;
+            if (!confirm('Delete this conversation?')) return;
+
+            const wasActive = currentConversationId === id;
+            conversations.splice(index, 1);
+            saveConversations();
+
+            if (wasActive) {
+                if (conversations.length > 0) {
+                    const nextConv = conversations[0];
+                    currentConversationId = nextConv.id;
+                    currentMessages = [...nextConv.messages];
+                    loadConversationMessages(nextConv.messages);
+                } else {
+                    currentConversationId = 'current';
+                    currentMessages = [];
+                    document.getElementById('messages').innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-avatar">🧠</div>
+                            <div class="message-content">
+                                <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            updateConversationsList();
         }
 
         // Theme management
