@@ -25,6 +25,16 @@ class MemoryResponse(BaseModel):
     relevance_score: float = 0.0
 
 
+class PersonalityTraits(BaseModel):
+    """Big Five personality traits on a 0-1 scale."""
+
+    extraversion: float = Field(0.5, ge=0.0, le=1.0)
+    agreeableness: float = Field(0.5, ge=0.0, le=1.0)
+    conscientiousness: float = Field(0.5, ge=0.0, le=1.0)
+    neuroticism: float = Field(0.5, ge=0.0, le=1.0)
+    openness: float = Field(0.5, ge=0.0, le=1.0)
+
+
 class ChatRequest(BaseModel):
     """Schema for chat requests"""
 
@@ -41,6 +51,10 @@ class ChatRequest(BaseModel):
     )
     thread_id: str = Field(
         "default", description="Conversation thread ID for maintaining context"
+    )
+    personality: Optional[PersonalityTraits] = Field(
+        None,
+        description="Optional Big Five personality profile to influence response style",
     )
 
 

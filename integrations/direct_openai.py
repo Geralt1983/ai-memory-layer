@@ -14,6 +14,7 @@ import re
 from datetime import datetime
 from types import SimpleNamespace
 from core.memory_engine import Memory, MemoryEngine
+from core.personality import PersonalityProfile
 from core.logging_config import get_logger, monitor_performance
 from .embeddings import OpenAIEmbeddings
 import os
@@ -383,7 +384,8 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         thread_id: str,
         user_message: str,
         system_prompt: Optional[str] = None,
-        include_memories: int = 5
+        include_memories: int = 5,
+        personality: Optional[PersonalityProfile] = None,
     ) -> List[Dict[str, str]]:
         """Build the optimized messages array for GPT-4o API with sophisticated context"""
         messages = []
@@ -395,11 +397,14 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         
         # 2. Identity profile injection for personalization (enhanced for thread starts)
         messages.append({"role": "system", "content": self._create_identity_message(thread_id)})
-        
+
         # 3. Behavior expectations for consistency
         messages.append({"role": "system", "content": self._create_behavior_log()})
-        
-        # 4. High-priority memories (identity corrections, etc.) - ALWAYS include
+
+        # 4. Optional personality modifiers
+        if personality:
+            messages.append({"role": "system", "content": personality.to_prompt()})
+        # 5. High-priority memories (identity corrections, etc.) - ALWAYS include
         if hasattr(self.memory_engine, 'get_high_priority_memories'):
             high_priority_memories = self.memory_engine.get_high_priority_memories(limit=3)
             if high_priority_memories:
@@ -409,7 +414,7 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                     "content": f"CRITICAL CONTEXT (always apply): {priority_content}"
                 })
         
-        # 5. Sophisticated memory injection (rewritten for natural context)
+        # 6. Sophisticated memory injection (rewritten for natural context)
         if include_memories > 0:
             relevant_memories = self.memory_engine.search_memories(user_message, k=include_memories)
             if relevant_memories:
@@ -433,7 +438,7 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                         "content": titles_context
                     })
         
-        # 6. Thread title context injection for current conversation
+        # 7. Thread title context injection for current conversation
         if thread_id and thread_id in self.conversations:
             # Check if we have a title for this thread in memories
             thread_memories = [m for m in self.memory_engine.memories 
@@ -444,7 +449,7 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
                     "content": f"Current conversation topic: '{thread_memories[0].title}'"
                 })
         
-        # 7. Context anchoring for ambiguous follow-ups (CRITICAL for semantic drift prevention)
+        # 8. Context anchoring for ambiguous follow-ups (CRITICAL for semantic drift prevention)
         context_anchor = self._create_context_anchor(user_message, thread_id)
         if context_anchor:
             messages.append({
@@ -453,12 +458,12 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
             })
             self.logger.debug(f"Added context anchor for ambiguous input: {user_message[:50]}...")
         
-        # 7. Add conversation history (maintain continuity - minimum 3-5 exchanges)
+        # 9. Add conversation history (maintain continuity - minimum 3-5 exchanges)
         conversation_history = self._get_conversation_messages(thread_id, limit=20)
         for msg in conversation_history:
             messages.append({"role": msg["role"], "content": msg["content"]})
         
-        # 8. Add current user message with disambiguation
+        # 10. Add current user message with disambiguation
         disambiguated_message = self._disambiguate_user_input(user_message, thread_id)
         messages.append({"role": "user", "content": disambiguated_message})
         
@@ -484,6 +489,7 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         system_prompt: Optional[str] = None,
         remember_response: bool = True,
         temperature: float = 0.7,
+        personality: Optional[PersonalityProfile] = None,
     ) -> Tuple[str, List[Dict[str, str]]]:
         """GPT-4o optimized chat method with human-like response tuning"""
         
@@ -496,7 +502,8 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         messages = self._build_messages_array(
             thread_id=thread_id,
             user_message=message,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            personality=personality,
         )
 
         # Record how many messages were sent for external inspection
@@ -594,6 +601,7 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         system_prompt: Optional[str] = None,
         remember_response: bool = True,
         temperature: float = 0.7,
+        personality: Optional[PersonalityProfile] = None,
     ):
         """Stream GPT-4o response tokens incrementally"""
 
@@ -606,6 +614,7 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
             thread_id=thread_id,
             user_message=message,
             system_prompt=system_prompt,
+            personality=personality,
         )
 
         assistant_response = ""
@@ -768,6 +777,7 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         include_recent: int = 5,
         include_relevant: int = 5,
         remember_response: bool = True,
+        personality: Optional[PersonalityProfile] = None,
     ) -> str:
         """Compatibility wrapper mimicking the older OpenAIIntegration API.
 
@@ -784,5 +794,6 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
             thread_id="default",
             system_prompt=system_prompt,
             remember_response=remember_response,
+            personality=personality,
         )
         return response
