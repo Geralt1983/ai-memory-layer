@@ -1,3 +1,8 @@
+from typing import List, Dict, Any, Optional
+import pickle
+import os
+from core.memory_engine import Memory, VectorStore
+
 # Try to import numpy and faiss, fall back to mock if not available
 try:
     import numpy as np
@@ -30,38 +35,70 @@ except ImportError:
     FAISS_AVAILABLE = False
 
     # Mock faiss for compatibility
+    class MockIndex:
+        """Simple in-memory mock for FAISS indices"""
+
+        def __init__(self, dim: int = 0):
+            self.d = dim
+            self.vectors: Dict[int, Any] = {}
+
+        @property
+        def ntotal(self) -> int:
+            return len(self.vectors)
+
+        def add_with_ids(self, vectors, ids):
+            for vec, idx in zip(vectors, ids):
+                self.vectors[int(idx)] = vec
+
+        def search(self, query, k):
+            ids = list(self.vectors.keys())[:k]
+            distances = [[0.0] * len(ids)]
+            return distances, [ids]
+
+        def remove_ids(self, ids):
+            removed = 0
+            for idx in ids:
+                if int(idx) in self.vectors:
+                    del self.vectors[int(idx)]
+                    removed += 1
+            return removed
+
+        def reset(self):
+            self.vectors = {}
+
     class MockFaiss:
         METRIC_L2 = 1
 
         @staticmethod
         def IndexFlatL2(dim):
-            return MockIndex()
+            return MockIndex(dim)
 
-    class MockIndex:
-        def __init__(self):
-            self.ntotal = 0
-            self.d = 0
+        @staticmethod
+        def IndexIDMap(base_index):
+            return base_index
 
-        def add(self, vectors):
-            pass
+        @staticmethod
+        def write_index(index, path):
+            with open(path, "wb") as f:
+                pickle.dump(index, f)
 
-        def search(self, query, k):
-            return [[]], [[]]
-
-        def reset(self):
-            pass
+        @staticmethod
+        def read_index(path):
+            with open(path, "rb") as f:
+                return pickle.load(f)
 
     faiss = MockFaiss()
-from typing import List, Dict, Any, Optional
-import pickle
-import os
-from core.memory_engine import Memory, VectorStore
 
 
 class FaissVectorStore(VectorStore):
     def __init__(self, dimension: int = 1536, index_path: Optional[str] = None):
         self.dimension = dimension
-        self.index = faiss.IndexFlatL2(dimension)
+        base_index = faiss.IndexFlatL2(dimension)
+        try:
+            self.index = faiss.IndexIDMap(base_index)
+        except AttributeError:
+            # Fallback for mock faiss which directly returns base_index
+            self.index = base_index
         self.memories: Dict[int, Memory] = {}
         self.current_id = 0
         self.index_path = index_path
@@ -76,10 +113,18 @@ class FaissVectorStore(VectorStore):
             )
 
         embedding = memory.embedding.astype("float32").reshape(1, -1)
-        self.index.add(embedding)
 
-        memory_id = str(self.current_id)
-        self.memories[self.current_id] = memory
+        memory_id_int = self.current_id
+        ids = np.array([memory_id_int], dtype="int64")
+
+        if hasattr(self.index, "add_with_ids"):
+            self.index.add_with_ids(embedding, ids)
+        else:
+            # Fallback for mock index
+            self.index.add(embedding)
+
+        memory_id = str(memory_id_int)
+        self.memories[memory_id_int] = memory
         self.current_id += 1
 
         if self.index_path:
@@ -110,31 +155,19 @@ class FaissVectorStore(VectorStore):
             idx = int(memory_id)
             if idx in self.memories:
                 del self.memories[idx]
-                # Rebuild the FAISS index to remove the deleted embedding
-                self._rebuild_index()
+
+                if hasattr(self.index, "remove_ids"):
+                    ids = np.array([idx], dtype="int64")
+                    self.index.remove_ids(ids)
+
+                if self.index_path:
+                    self.save_index(self.index_path)
+
                 return True
         except ValueError:
             pass
         return False
 
-    def _rebuild_index(self) -> None:
-        """Rebuild the FAISS index from current memories."""
-        # Reset the index and reinsert all remaining embeddings
-        self.index.reset()
-
-        new_memories: Dict[int, Memory] = {}
-        for new_idx, (_, memory) in enumerate(sorted(self.memories.items())):
-            embedding = memory.embedding.astype("float32").reshape(1, -1)
-            self.index.add(embedding)
-            new_memories[new_idx] = memory
-
-        # Update memory IDs and current_id
-        self.memories = new_memories
-        self.current_id = len(self.memories)
-
-        # Persist the rebuilt index if persistence is enabled
-        if self.index_path:
-            self.save_index(self.index_path)
 
     def save_index(self, path: str) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
