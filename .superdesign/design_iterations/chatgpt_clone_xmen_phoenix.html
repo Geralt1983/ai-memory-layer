@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dark Phoenix - Cerebro Interface</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Playfair+Display:wght@400;700;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        :root {
+            /* Dark Phoenix Color Palette */
+            --bg-primary: #1a0a0a;
+            --bg-secondary: rgba(40, 10, 0, 0.9);
+            --bg-tertiary: rgba(60, 20, 0, 0.8);
+            --text-primary: #ffffff;
+            --text-secondary: #ff8c00;
+            --text-muted: #ffa500;
+            --border: rgba(255, 140, 0, 0.4);
+            --border-hover: rgba(255, 140, 0, 0.8);
+            --accent: #ff4500;
+            --accent-secondary: #ff6347;
+            --success: #32cd32;
+            --warning: #ffd700;
+            --error: #ff0000;
+            --phoenix-orange: #ff8c00;
+            --phoenix-red: #ff4500;
+            --phoenix-gold: #ffd700;
+            
+            /* Typography */
+            --font-phoenix: 'Playfair Display', serif;
+            --font-display: 'Space Mono', monospace;
+            --font-tech: 'Orbitron', monospace;
+            
+            /* Shadows */
+            --shadow-phoenix: 4px 4px 0px rgba(255, 69, 0, 0.3);
+            --shadow-glow: 0 0 20px rgba(255, 140, 0, 0.6);
+            --shadow-dark: 0 8px 32px rgba(0, 0, 0, 0.9);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-tech);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        /* Phoenix Background */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(255, 140, 0, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 69, 0, 0.2) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(255, 215, 0, 0.1) 0%, transparent 50%),
+                linear-gradient(45deg, var(--bg-primary) 0%, #2a0a0a 100%);
+            animation: phoenixShift 15s ease-in-out infinite;
+            z-index: -1;
+        }
+        
+        @keyframes phoenixShift {
+            0%, 100% { transform: scale(1) rotate(0deg); filter: hue-rotate(0deg); }
+            50% { transform: scale(1.05) rotate(2deg); filter: hue-rotate(15deg); }
+        }
+        
+        /* Phoenix Layout */
+        .app-container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            height: 100vh;
+            backdrop-filter: blur(5px);
+        }
+        
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 3px solid var(--phoenix-orange);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: var(--shadow-phoenix);
+            position: relative;
+        }
+        
+        .sidebar::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--phoenix-orange), var(--phoenix-gold), var(--phoenix-orange));
+            animation: phoenixFlow 3s ease-in-out infinite;
+        }
+        
+        @keyframes phoenixFlow {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            background: transparent;
+        }
+        
+        /* Phoenix Elements */
+        .phoenix-panel {
+            background: var(--bg-secondary);
+            border: 3px solid var(--phoenix-orange);
+            box-shadow: var(--shadow-phoenix);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .phoenix-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(255, 140, 0, 0.1) 2px,
+                    rgba(255, 140, 0, 0.1) 4px
+                );
+            pointer-events: none;
+        }
+        
+        /* Phoenix Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 12px 24px;
+            border: 3px solid var(--phoenix-orange);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            font-family: var(--font-display);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            box-shadow: var(--shadow-phoenix);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 140, 0, 0.3), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .btn:hover::before {
+            left: 100%;
+        }
+        
+        .btn:hover {
+            border-color: var(--phoenix-gold);
+            box-shadow: var(--shadow-glow);
+            transform: translateY(-2px);
+        }
+        
+        .btn:active {
+            transform: translateY(0);
+            box-shadow: var(--shadow-phoenix);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, var(--phoenix-red), var(--phoenix-orange));
+            border-color: var(--phoenix-orange);
+            color: var(--text-primary);
+            font-weight: 700;
+        }
+        
+        .btn-primary:hover {
+            box-shadow: var(--shadow-glow);
+        }
+        
+        /* Messages */
+        .message {
+            margin-bottom: 24px;
+            max-width: 85%;
+            animation: phoenixSlide 0.5s ease-out;
+            position: relative;
+        }
+        
+        .message::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                repeating-linear-gradient(
+                    45deg,
+                    transparent,
+                    transparent 2px,
+                    rgba(255, 140, 0, 0.05) 2px,
+                    rgba(255, 140, 0, 0.05) 4px
+                );
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        .message:hover::before {
+            opacity: 1;
+        }
+        
+        .message-user {
+            background: linear-gradient(135deg, var(--phoenix-red), var(--phoenix-orange));
+            color: var(--text-primary);
+            margin-left: auto;
+            border: 3px solid var(--phoenix-orange);
+            border-radius: 20px 20px 8px 20px;
+            box-shadow: var(--shadow-phoenix);
+        }
+        
+        .message-ai {
+            background: var(--bg-secondary);
+            border: 3px solid var(--phoenix-orange);
+            margin-right: auto;
+            border-radius: 20px 20px 20px 8px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .message-content {
+            padding: 16px;
+            font-family: var(--font-tech);
+            font-size: 14px;
+            line-height: 1.6;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .message-timestamp {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 8px;
+            font-family: var(--font-display);
+            opacity: 0.8;
+        }
+        
+        /* Input */
+        .input-container {
+            background: var(--bg-secondary);
+            border-top: 3px solid var(--phoenix-orange);
+            padding: 24px;
+            backdrop-filter: blur(10px);
+            position: relative;
+        }
+        
+        .input-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--phoenix-orange), var(--phoenix-gold), var(--phoenix-orange));
+            animation: phoenixFlow 2s ease-in-out infinite;
+        }
+        
+        .chat-input {
+            width: 100%;
+            padding: 16px;
+            border: 3px solid var(--phoenix-orange);
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-family: var(--font-tech);
+            font-size: 14px;
+            resize: none;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            box-shadow: var(--shadow-phoenix);
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--phoenix-gold);
+            box-shadow: var(--shadow-glow);
+            background: var(--bg-secondary);
+        }
+        
+        /* Phoenix Animations */
+        @keyframes phoenixSlide {
+            from {
+                opacity: 0;
+                transform: translateY(20px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        
+        @keyframes phoenixPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.05); }
+        }
+        
+        @keyframes phoenixGlow {
+            0%, 100% { box-shadow: var(--shadow-phoenix); }
+            50% { box-shadow: var(--shadow-glow); }
+        }
+        
+        /* Typing indicator */
+        .typing-indicator {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+        
+        .typing-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--phoenix-orange);
+            border: 2px solid var(--phoenix-gold);
+            border-radius: 50%;
+            animation: phoenixPulse 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        /* Code blocks */
+        .code-block {
+            background: var(--bg-primary);
+            border: 2px solid var(--phoenix-orange);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+            font-family: var(--font-tech);
+            font-size: 13px;
+            overflow-x: auto;
+            position: relative;
+            box-shadow: var(--shadow-phoenix);
+        }
+        
+        .code-block::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--phoenix-orange), var(--phoenix-gold), var(--phoenix-orange));
+        }
+        
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 3px solid var(--phoenix-orange);
+            backdrop-filter: blur(10px);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--phoenix-orange), var(--phoenix-gold), var(--phoenix-orange));
+            animation: phoenixFlow 2s ease-in-out infinite;
+        }
+        
+        .header-title {
+            font-family: var(--font-phoenix);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--phoenix-orange);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8);
+            letter-spacing: 2px;
+        }
+        
+        /* Status indicators */
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: var(--font-display);
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: var(--success);
+            border: 2px solid var(--phoenix-orange);
+            border-radius: 50%;
+            animation: phoenixPulse 2s infinite;
+        }
+        
+        /* Phoenix themed elements */
+        .phoenix-logo {
+            width: 40px;
+            height: 40px;
+            background: var(--phoenix-orange);
+            border: 3px solid var(--phoenix-gold);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: var(--font-phoenix);
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--phoenix-gold);
+            box-shadow: var(--shadow-phoenix);
+            animation: phoenixGlow 3s ease-in-out infinite;
+        }
+        
+        .power-meter {
+            width: 100%;
+            height: 8px;
+            background: var(--bg-tertiary);
+            border: 2px solid var(--phoenix-orange);
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .power-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--phoenix-orange), var(--phoenix-gold));
+            width: 90%;
+            animation: phoenixFlow 2s ease-in-out infinite;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                position: fixed;
+                left: -320px;
+                top: 0;
+                height: 100vh;
+                z-index: 50;
+                transition: left 0.3s ease;
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar phoenix-panel">
+            <div class="header">
+                <div class="flex items-center gap-3">
+                    <div class="phoenix-logo">🔥</div>
+                    <h1 class="header-title">PHOENIX</h1>
+                </div>
+                <div class="status-indicator">
+                    <div class="status-dot"></div>
+                    <span>PHOENIX FORCE DETECTED</span>
+                </div>
+            </div>
+            
+            <div class="p-6">
+                <button class="btn btn-primary w-full mb-6" onclick="createNewChat()">
+                    <i data-lucide="zap" class="w-4 h-4 mr-2"></i>
+                    NEW PHOENIX MISSION
+                </button>
+                
+                <div class="mb-4">
+                    <div class="text-sm text-muted mb-2">PHOENIX FORCE LEVEL</div>
+                    <div class="power-meter">
+                        <div class="power-fill"></div>
+                    </div>
+                </div>
+                
+                <div class="space-y-3" id="chatHistory">
+                    <!-- Chat history items -->
+                </div>
+            </div>
+            
+            <div class="mt-auto p-6 border-t border-phoenix-orange">
+                <button class="btn w-full justify-start" onclick="toggleTheme()">
+                    <i data-lucide="flame" class="w-4 h-4 mr-2"></i>
+                    TOGGLE PHOENIX MODE
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <div class="flex items-center gap-4">
+                    <button class="btn p-2 md:hidden" onclick="toggleSidebar()">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
+                    <h2 class="header-title">DARK PHOENIX SAGA</h2>
+                </div>
+                
+                <div class="flex items-center gap-4">
+                    <select class="bg-tertiary border-2 border-phoenix-orange rounded-lg px-3 py-2 text-sm font-display">
+                        <option value="jean-grey">JEAN GREY</option>
+                        <option value="cyclops">CYCLOPS</option>
+                        <option value="professor-x">PROFESSOR X</option>
+                        <option value="storm">STORM</option>
+                    </select>
+                    <div class="status-indicator">
+                        <div class="status-dot"></div>
+                        <span>PHOENIX ACTIVE</span>
+                    </div>
+                </div>
+            </header>
+            
+            <!-- Chat Messages -->
+            <div class="flex-1 overflow-y-auto p-6" id="chatMessages">
+                <div class="max-w-4xl mx-auto space-y-6">
+                    <!-- Welcome Message -->
+                    <div class="message message-ai phoenix-panel">
+                        <div class="message-content">
+                            <p>🔥 <strong>WELCOME TO THE PHOENIX FORCE, CHOSEN ONE!</strong></p>
+                            <p>I am the Phoenix Cerebro system, attuned to the cosmic fire that burns within you. I can help you with:</p>
+                            <ul style="margin-left: 20px; margin-top: 10px;">
+                                <li>• Phoenix Force mastery and control</li>
+                                <li>• Cosmic power channeling</li>
+                                <li>• Dark Phoenix containment</li>
+                                <li>• Reality manipulation techniques</li>
+                                <li>• And much more!</li>
+                            </ul>
+                            <p>What Phoenix mission shall we undertake?</p>
+                        </div>
+                        <div class="message-timestamp">[PHOENIX CEREBRO] Just now</div>
+                    </div>
+                    
+                    <!-- Example User Message -->
+                    <div class="message message-user">
+                        <div class="message-content">
+                            <p>How do I control the Dark Phoenix within me?</p>
+                        </div>
+                        <div class="message-timestamp">[CHOSEN ONE] 2 minutes ago</div>
+                    </div>
+                    
+                    <!-- Example AI Response -->
+                    <div class="message message-ai phoenix-panel">
+                        <div class="message-content">
+                            <p>🔥 <strong>PHOENIX FORCE ANALYSIS COMPLETE</strong></p>
+                            <p>Here's the technique to control the Dark Phoenix:</p>
+                            <div class="code-block">
+                                <pre><code>class PhoenixControl {
+  constructor() {
+    this.mentalShield = "Professor X's Training";
+    this.emotionalBalance = "Cyclops' Love";
+    this.cosmicFocus = "Storm's Guidance";
+    this.willpower = "Jean's Strength";
+  }
+  
+  controlDarkPhoenix() {
+    if (this.mentalShield && this.emotionalBalance) {
+      return this.channelPhoenixForce();
+    } else {
+      return this.containDarkPhoenix();
+    }
+  }
+  
+  channelPhoenixForce() {
+    return "Phoenix Force controlled!";
+  }
+}</code></pre>
+                            </div>
+                            <p>This technique requires mental discipline and emotional balance to master the Phoenix Force!</p>
+                        </div>
+                        <div class="message-timestamp">[PHOENIX CEREBRO] 1 minute ago</div>
+                    </div>
+                    
+                    <!-- Typing Indicator -->
+                    <div class="message message-ai phoenix-panel" id="typingIndicator" style="display: none;">
+                        <div class="message-content">
+                            <div class="typing-indicator">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <span style="margin-left: 12px; color: var(--phoenix-orange);">ANALYZING...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="input-container">
+                <div class="max-w-4xl mx-auto">
+                    <div class="flex gap-4">
+                        <textarea 
+                            id="chatInput"
+                            class="chat-input flex-1"
+                            placeholder="Enter your Phoenix query..."
+                            rows="2"
+                        ></textarea>
+                        <button class="btn btn-primary px-6" onclick="sendMessage()" id="sendButton">
+                            <i data-lucide="flame" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <div class="mt-3 text-xs text-muted flex justify-between font-display">
+                        <span>Press ENTER to transmit | SHIFT+ENTER for new line</span>
+                        <span>PHOENIX STATUS: ACTIVE</span>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        lucide.createIcons();
+        
+        let isTyping = false;
+        let chatHistory = [
+            { id: 1, title: "MISSION: PHOENIX CONTROL", timestamp: "2 minutes ago" },
+            { id: 2, title: "MISSION: DARK PHOENIX CONTAINMENT", timestamp: "1 hour ago" },
+            { id: 3, title: "MISSION: COSMIC POWER MASTERY", timestamp: "3 hours ago" }
+        ];
+        
+        const sidebar = document.querySelector('.sidebar');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const chatMessages = document.getElementById('chatMessages');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const chatHistoryContainer = document.getElementById('chatHistory');
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeChat();
+            populateChatHistory();
+            setupEventListeners();
+        });
+        
+        function initializeChat() {
+            chatInput.addEventListener('input', autoResizeTextarea);
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+        
+        function setupEventListeners() {
+            document.addEventListener('click', function(e) {
+                if (window.innerWidth <= 768) {
+                    if (!sidebar.contains(e.target) && !e.target.closest('[onclick*="toggleSidebar"]')) {
+                        closeSidebar();
+                    }
+                }
+            });
+        }
+        
+        function populateChatHistory() {
+            chatHistoryContainer.innerHTML = chatHistory.map(chat => `
+                <div class="p-3 rounded-lg cursor-pointer border-2 border-phoenix-orange hover:border-phoenix-gold transition-colors" onclick="loadChat(${chat.id})">
+                    <div class="font-bold text-sm text-phoenix-orange">${chat.title}</div>
+                    <div class="text-xs text-muted">${chat.timestamp}</div>
+                </div>
+            `).join('');
+        }
+        
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+        }
+        
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+        }
+        
+        function toggleTheme() {
+            // Add Phoenix effect
+            document.body.style.filter = 'hue-rotate(30deg) saturate(1.5) brightness(1.2)';
+            setTimeout(() => {
+                document.body.style.filter = 'none';
+            }, 1000);
+        }
+        
+        function autoResizeTextarea() {
+            chatInput.style.height = 'auto';
+            chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+        }
+        
+        function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || isTyping) return;
+            
+            addMessage(message, 'user');
+            chatInput.value = '';
+            autoResizeTextarea();
+            
+            showTypingIndicator();
+            
+            setTimeout(() => {
+                hideTypingIndicator();
+                addMessage(getAIResponse(message), 'ai');
+            }, 2000);
+        }
+        
+        function addMessage(content, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type} ${type === 'ai' ? 'phoenix-panel' : ''}`;
+            
+            const timestamp = new Date().toLocaleTimeString('en-US', { 
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <p>${escapeHtml(content)}</p>
+                </div>
+                <div class="message-timestamp">[${type === 'user' ? 'CHOSEN ONE' : 'PHOENIX CEREBRO'}] ${timestamp}</div>
+            `;
+            
+            const chatContainer = chatMessages.querySelector('.space-y-6');
+            chatContainer.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function showTypingIndicator() {
+            isTyping = true;
+            typingIndicator.style.display = 'block';
+            sendButton.disabled = true;
+            sendButton.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            lucide.createIcons();
+        }
+        
+        function hideTypingIndicator() {
+            isTyping = false;
+            typingIndicator.style.display = 'none';
+            sendButton.disabled = false;
+            sendButton.innerHTML = '<i data-lucide="flame" class="w-5 h-5"></i>';
+            lucide.createIcons();
+        }
+        
+        function getAIResponse(userMessage) {
+            const responses = [
+                "🔥 <strong>PHOENIX FORCE ANALYSIS COMPLETE</strong>\nHere's what I've discovered...",
+                "⚡ <strong>COSMIC POWER ASSESSMENT</strong>\nBased on my scans...",
+                "🛡️ <strong>DARK PHOENIX CONTAINMENT PLAN</strong>\nI can help you with...",
+                "🔮 <strong>PHOENIX FORCE MASTERY</strong>\nLet me assist you with...",
+                "🌪️ <strong>REALITY MANIPULATION READY</strong>\nHere's my cosmic advice..."
+            ];
+            return responses[Math.floor(Math.random() * responses.length)];
+        }
+        
+        function createNewChat() {
+            const newChat = {
+                id: Date.now(),
+                title: "NEW PHOENIX MISSION",
+                timestamp: "Just now"
+            };
+            chatHistory.unshift(newChat);
+            populateChatHistory();
+            
+            const chatContainer = chatMessages.querySelector('.space-y-6');
+            chatContainer.innerHTML = `
+                <div class="message message-ai phoenix-panel">
+                    <div class="message-content">
+                        <p>🔥 <strong>WELCOME TO THE PHOENIX FORCE, CHOSEN ONE!</strong></p>
+                        <p>I am the Phoenix Cerebro system, attuned to the cosmic fire that burns within you. What Phoenix mission shall we undertake?</p>
+                    </div>
+                    <div class="message-timestamp">[PHOENIX CEREBRO] Just now</div>
+                </div>
+            `;
+            
+            closeSidebar();
+        }
+        
+        function loadChat(chatId) {
+            console.log('Loading chat:', chatId);
+            closeSidebar();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>

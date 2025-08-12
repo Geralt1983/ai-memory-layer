@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Memory Layer - Minimalist Chat</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <style>
+        :root {
+            /* Minimalist Color Palette */
+            --bg-primary: #fafafa;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f5f5f5;
+            --text-primary: #1a1a1a;
+            --text-secondary: #666666;
+            --text-muted: #999999;
+            --border: #e5e5e5;
+            --border-hover: #d4d4d4;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            
+            /* Typography */
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+            
+            /* Spacing */
+            --space-xs: 0.5rem;
+            --space-sm: 1rem;
+            --space-md: 1.5rem;
+            --space-lg: 2rem;
+            --space-xl: 3rem;
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+        }
+        
+        .dark {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #1a1a1a;
+            --bg-tertiary: #262626;
+            --text-primary: #fafafa;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
+            --border: #404040;
+            --border-hover: #525252;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            font-weight: 400;
+        }
+        
+        /* Minimalist Layout */
+        .app-container {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            height: 100vh;
+            background: var(--bg-primary);
+        }
+        
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .main-content {
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-primary);
+        }
+        
+        /* Typography */
+        .text-heading {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.025em;
+        }
+        
+        .text-body {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+        
+        .text-muted {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+        
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+        
+        .btn-ghost:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+        
+        /* Messages */
+        .message {
+            padding: var(--space-md);
+            margin-bottom: var(--space-md);
+            border-radius: 1rem;
+            max-width: 80%;
+            animation: fadeInUp 0.3s ease-out;
+        }
+        
+        .message-user {
+            background: var(--accent);
+            color: white;
+            margin-left: auto;
+            border-bottom-right-radius: 0.25rem;
+        }
+        
+        .message-ai {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            margin-right: auto;
+            border-bottom-left-radius: 0.25rem;
+        }
+        
+        /* Input */
+        .input-container {
+            background: var(--bg-secondary);
+            border-top: 1px solid var(--border);
+            padding: var(--space-lg);
+        }
+        
+        .chat-input {
+            width: 100%;
+            padding: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            font-size: 0.875rem;
+            resize: none;
+            transition: border-color 0.2s ease;
+        }
+        
+        .chat-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgb(59 130 246 / 0.1);
+        }
+        
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .app-container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                position: fixed;
+                left: -300px;
+                top: 0;
+                height: 100vh;
+                z-index: 50;
+                transition: left 0.3s ease;
+            }
+            
+            .sidebar.open {
+                left: 0;
+            }
+        }
+        
+        /* Code blocks */
+        .code-block {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: var(--space-md);
+            margin: var(--space-sm) 0;
+            font-family: var(--font-mono);
+            font-size: 0.875rem;
+            overflow-x: auto;
+        }
+        
+        /* Typing indicator */
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="p-6 border-b border-border">
+                <h1 class="text-heading mb-4">AI Memory Layer</h1>
+                <button class="btn btn-primary w-full" onclick="createNewChat()">
+                    <i data-lucide="plus" class="w-4 h-4 mr-2"></i>
+                    New Chat
+                </button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-4">
+                <div class="space-y-2" id="chatHistory">
+                    <!-- Chat history items -->
+                </div>
+            </div>
+            
+            <div class="p-4 border-t border-border">
+                <button class="btn btn-ghost w-full justify-start" onclick="toggleTheme()">
+                    <i data-lucide="moon" class="w-4 h-4 mr-2"></i>
+                    Toggle Theme
+                </button>
+            </div>
+        </aside>
+        
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="h-16 border-b border-border flex items-center justify-between px-6 bg-secondary">
+                <div class="flex items-center gap-4">
+                    <button class="btn btn-ghost p-2 md:hidden" onclick="toggleSidebar()">
+                        <i data-lucide="menu" class="w-5 h-5"></i>
+                    </button>
+                    <h2 class="text-heading">Minimalist Chat</h2>
+                </div>
+                
+                <div class="flex items-center gap-3">
+                    <select class="bg-primary border border-border rounded-md px-3 py-1.5 text-sm">
+                        <option value="gpt-4">GPT-4</option>
+                        <option value="gpt-3.5">GPT-3.5</option>
+                    </select>
+                </div>
+            </header>
+            
+            <!-- Chat Messages -->
+            <div class="flex-1 overflow-y-auto p-6" id="chatMessages">
+                <div class="max-w-3xl mx-auto space-y-6">
+                    <!-- Welcome Message -->
+                    <div class="message message-ai">
+                        <div class="text-body">
+                            <p>Hello! I'm your minimalist AI assistant. How can I help you today?</p>
+                        </div>
+                        <div class="text-muted mt-2">Just now</div>
+                    </div>
+                    
+                    <!-- Example User Message -->
+                    <div class="message message-user">
+                        <div class="text-body">
+                            <p>Can you help me write a simple React component?</p>
+                        </div>
+                        <div class="text-muted mt-2">2 minutes ago</div>
+                    </div>
+                    
+                    <!-- Example AI Response -->
+                    <div class="message message-ai">
+                        <div class="text-body">
+                            <p>Here's a simple React component:</p>
+                            <div class="code-block">
+                                <pre><code>function Greeting({ name }) {
+  return (
+    &lt;div className="greeting"&gt;
+      Hello, {name}!
+    &lt;/div&gt;
+  );
+}</code></pre>
+                            </div>
+                            <p>This component takes a name prop and displays a greeting.</p>
+                        </div>
+                        <div class="text-muted mt-2">1 minute ago</div>
+                    </div>
+                    
+                    <!-- Typing Indicator -->
+                    <div class="message message-ai" id="typingIndicator" style="display: none;">
+                        <div class="typing-dots">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Input Area -->
+            <div class="input-container">
+                <div class="max-w-3xl mx-auto">
+                    <div class="flex gap-3">
+                        <textarea 
+                            id="chatInput"
+                            class="chat-input flex-1"
+                            placeholder="Type your message..."
+                            rows="1"
+                        ></textarea>
+                        <button class="btn btn-primary px-4" onclick="sendMessage()" id="sendButton">
+                            <i data-lucide="send" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <script>
+        lucide.createIcons();
+        
+        let isDarkMode = false;
+        let isTyping = false;
+        let chatHistory = [
+            { id: 1, title: "React Component Help", timestamp: "2 minutes ago" },
+            { id: 2, title: "CSS Grid Layout", timestamp: "1 hour ago" },
+            { id: 3, title: "JavaScript Promises", timestamp: "3 hours ago" }
+        ];
+        
+        const sidebar = document.querySelector('.sidebar');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const chatMessages = document.getElementById('chatMessages');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const chatHistoryContainer = document.getElementById('chatHistory');
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeChat();
+            populateChatHistory();
+            setupEventListeners();
+        });
+        
+        function initializeChat() {
+            chatInput.addEventListener('input', autoResizeTextarea);
+            chatInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+        }
+        
+        function setupEventListeners() {
+            // Mobile sidebar handling
+            document.addEventListener('click', function(e) {
+                if (window.innerWidth <= 768) {
+                    if (!sidebar.contains(e.target) && !e.target.closest('[onclick*="toggleSidebar"]')) {
+                        closeSidebar();
+                    }
+                }
+            });
+        }
+        
+        function populateChatHistory() {
+            chatHistoryContainer.innerHTML = chatHistory.map(chat => `
+                <div class="p-3 rounded-lg cursor-pointer hover:bg-tertiary transition-colors" onclick="loadChat(${chat.id})">
+                    <div class="text-body font-medium truncate">${chat.title}</div>
+                    <div class="text-muted">${chat.timestamp}</div>
+                </div>
+            `).join('');
+        }
+        
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+        }
+        
+        function closeSidebar() {
+            sidebar.classList.remove('open');
+        }
+        
+        function toggleTheme() {
+            isDarkMode = !isDarkMode;
+            document.body.classList.toggle('dark', isDarkMode);
+            
+            const themeIcon = document.querySelector('[onclick="toggleTheme()"] i');
+            themeIcon.setAttribute('data-lucide', isDarkMode ? 'sun' : 'moon');
+            lucide.createIcons();
+        }
+        
+        function autoResizeTextarea() {
+            chatInput.style.height = 'auto';
+            chatInput.style.height = Math.min(chatInput.scrollHeight, 120) + 'px';
+        }
+        
+        function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || isTyping) return;
+            
+            addMessage(message, 'user');
+            chatInput.value = '';
+            autoResizeTextarea();
+            
+            showTypingIndicator();
+            
+            setTimeout(() => {
+                hideTypingIndicator();
+                addMessage(getAIResponse(message), 'ai');
+            }, 1500);
+        }
+        
+        function addMessage(content, type) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message message-${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            
+            messageDiv.innerHTML = `
+                <div class="text-body">
+                    <p>${escapeHtml(content)}</p>
+                </div>
+                <div class="text-muted mt-2">${timestamp}</div>
+            `;
+            
+            const chatContainer = chatMessages.querySelector('.space-y-6');
+            chatContainer.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function showTypingIndicator() {
+            isTyping = true;
+            typingIndicator.style.display = 'block';
+            sendButton.disabled = true;
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        function hideTypingIndicator() {
+            isTyping = false;
+            typingIndicator.style.display = 'none';
+            sendButton.disabled = false;
+        }
+        
+        function getAIResponse(userMessage) {
+            const responses = [
+                "That's a great question! Here's what I can tell you...",
+                "I understand what you're asking. Let me help you with that.",
+                "Interesting! Here's my perspective on this...",
+                "I'd be happy to help you with that.",
+                "That's a good point. Here's what I think..."
+            ];
+            return responses[Math.floor(Math.random() * responses.length)];
+        }
+        
+        function createNewChat() {
+            const newChat = {
+                id: Date.now(),
+                title: "New Chat",
+                timestamp: "Just now"
+            };
+            chatHistory.unshift(newChat);
+            populateChatHistory();
+            
+            const chatContainer = chatMessages.querySelector('.space-y-6');
+            chatContainer.innerHTML = `
+                <div class="message message-ai">
+                    <div class="text-body">
+                        <p>Hello! I'm your minimalist AI assistant. How can I help you today?</p>
+                    </div>
+                    <div class="text-muted mt-2">Just now</div>
+                </div>
+            `;
+            
+            closeSidebar();
+        }
+        
+        function loadChat(chatId) {
+            console.log('Loading chat:', chatId);
+            closeSidebar();
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
