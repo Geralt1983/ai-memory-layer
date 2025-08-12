@@ -301,7 +301,8 @@ def create_optimized_memory_engine(
     memory_json_path: str,
     faiss_index_path: str,
     embedding_provider: Optional[EmbeddingProvider] = None,
-    auto_save: bool = False
+    auto_save: bool = False,
+    dimension: int = 1536
 ) -> OptimizedMemoryEngine:
     """
     Factory function to create an optimized memory engine with pre-computed embeddings
@@ -311,6 +312,7 @@ def create_optimized_memory_engine(
         faiss_index_path: Path to FAISS index (without .index extension)
         embedding_provider: Optional embedding provider for new queries
         auto_save: Whether to enable auto-save (disabled by default)
+        dimension: Embedding dimension used by the FAISS index. Defaults to 1536.
         
     Returns:
         Configured OptimizedMemoryEngine
@@ -319,7 +321,7 @@ def create_optimized_memory_engine(
     
     # Create vector store with pre-computed index
     vector_store = FaissVectorStore(
-        dimension=1536,  # OpenAI ada-002 dimension
+        dimension=dimension,
         index_path=faiss_index_path
     )
     
