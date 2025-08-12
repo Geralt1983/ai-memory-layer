@@ -1,0 +1,130 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+}
+
+.prose pre {
+  background: #0f1115;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  padding: 0.75rem 0.75rem;
+  overflow-x: auto;
+}
+.prose code {
+  background: rgba(255,255,255,0.06);
+  padding: 0.1rem 0.35rem;
+  border-radius: 6px;
+}
+.prose pre code {
+  background: transparent;
+  padding: 0;
+}
+
+/* ChatGPT-like theme classes */
+.bg-card-light { background: rgb(255 255 255 / 0.6); }
+.bg-card-dark { background: rgb(16 16 20); }
+.bg-bg-light { background: rgb(255 255 255); }
+.bg-bg-dark { background: rgb(16 16 20); }
+
+/* Code block shell styled like ChatGPT */
+.codeblock {
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0f1115;
+}
+
+/* Header row with language label left, copy right */
+.codeblock-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  padding: .4rem .6rem;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.codeblock-lang {
+  opacity: .85;
+}
+
+/* Copy button */
+.codeblock-copy {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: .25rem .5rem;
+  font-size: 11px;
+}
+.codeblock-copy:hover { background: rgba(255,255,255,0.1); }
+
+/* Body */
+.codeblock pre {
+  margin: 0;
+  padding: .8rem;
+  background: transparent;
+  overflow-x: auto;
+}
+
+/* Inline code in prose */
+.prose code {
+  background: rgba(255,255,255,0.06);
+  padding: 0 .35rem;
+  border-radius: 6px;
+}
+.prose pre code {
+  background: transparent;
+  padding: 0;
+}
+
+/* Line numbers mode */
+.codeblock.with-lines pre code {
+  display: grid;            /* each <span> is a line */
+  white-space: pre;         /* preserve spacing */
+}
+.codeblock.with-lines pre code > span {
+  display: block;
+}
+.codeblock.with-lines pre code > span::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  min-width: 2ch;
+  margin-right: 1rem;
+  opacity: .4;
+  text-align: right;
+  user-select: none;
+}
+
+/* Mobile polish & iOS Safari safe areas */
+@supports (padding: max(0px)) {
+  .mobile-safe-top { padding-top: max(0.75rem, env(safe-area-inset-top)); }
+  .mobile-safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+}
+
+/* Mobile drawer animation refinements */
+@media (max-width: 768px) {
+  .mobile-drawer {
+    transition: transform 200ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+  
+  /* Prevent body scroll when mobile sidebar is open */
+  .mobile-sidebar-open {
+    overflow: hidden;
+  }
+  
+  /* Improve tap targets on mobile */
+  .mobile-tap-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}

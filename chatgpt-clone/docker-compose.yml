@@ -1,0 +1,42 @@
+services:
+  chatgpt-clone:
+    build: .
+    ports:
+      - "3000:3000"
+      - "8001:8001"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:./data/dev.db
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=json
+      - VECTOR_STORE_TYPE=faiss
+      - PERSIST_DIRECTORY=./data
+      - MEMORY_PERSIST_PATH=./data/memories.json
+    volumes:
+      - ./data:/app/data
+    networks:
+      - chatgpt-net
+
+  # Optional PostgreSQL for production
+  postgres:
+    image: postgres:15
+    environment:
+      - POSTGRES_DB=chatgpt_clone
+      - POSTGRES_USER=app
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme123}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - chatgpt-net
+    profiles:
+      - postgres
+
+volumes:
+  postgres_data:
+
+networks:
+  chatgpt-net:
+    driver: bridge
