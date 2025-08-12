@@ -145,7 +145,11 @@ class TestFullIntegration:
         # Import here to avoid circular dependency
         from core.context_builder import ContextBuilder
 
-        builder = ContextBuilder(memory_engine, max_context_length=1000)
+        builder = ContextBuilder(
+            memory_engine,
+            max_context_length=1000,
+            profile_query="Jeremy wife Ashley kids dogs age",
+        )
 
         # Build context for Python-related query
         context = builder.build_context(
