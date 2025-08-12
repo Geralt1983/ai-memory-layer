@@ -878,15 +878,15 @@
                 const data = await response.json();
                 
                 // Simulate typing delay for better UX
-                setTimeout(() => {
+                setTimeout(async () => {
                     isGenerating = false;
                     showTyping(false);
                     addMessage('assistant', data.response);
                     updateMemoryCount();
-                    // Trigger title generation if this is one of the first few messages
-                    if (currentMessages.length <= 6) {
+                    // Generate title after first assistant response
+                    if (currentMessages.length === 2) {
                         console.log('Triggering title generation with', currentMessages.length, 'messages');
-                        generateConversationTitle();
+                        await generateConversationTitle();
                     }
                 }, 1000);
                 
@@ -951,11 +951,6 @@
                 timestamp: new Date().toISOString()
             });
             
-            // Generate title after we have enough context (2+ exchanges)
-            if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
-                console.log('Triggering title generation with', currentMessages.length, 'messages');
-                generateConversationTitle();
-            }
         }
 
         // Generate conversation title using AI
@@ -963,10 +958,10 @@
             try {
                 console.log('Generating title for messages:', currentMessages);
                 
-                const response = await fetch(`${API_BASE}/conversations/generate-title`, {
+                const response = await fetch(`${API_BASE}/conversation/title`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: currentMessages })
+                    body: JSON.stringify({ messages: currentMessages.slice(0, 2) })
                 });
                 
                 console.log('Title generation response status:', response.status);
@@ -980,6 +975,7 @@
                     const existingConv = conversations.find(c => c.id === currentConversationId);
                     if (existingConv) {
                         existingConv.title = title;
+                        existingConv.messages = [...currentMessages];
                         existingConv.lastMessage = new Date().toISOString();
                     } else {
                         // Create new conversation entry
@@ -1013,6 +1009,7 @@
                     const existingConv = conversations.find(c => c.id === currentConversationId);
                     if (existingConv) {
                         existingConv.title = fallbackTitle;
+                        existingConv.messages = [...currentMessages];
                         existingConv.lastMessage = new Date().toISOString();
                     } else {
                         const newConv = {
