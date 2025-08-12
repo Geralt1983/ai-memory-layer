@@ -194,7 +194,44 @@ class MemoryLayerCLI:
                 
         except Exception as e:
             print(f"❌ Error: {e}")
-    
+
+    def delete_memory(self, memory_id: str) -> bool:
+        """Delete a memory by ID"""
+        try:
+            response = self.session.delete(f"{self.api_url}/memories/{memory_id}")
+            if response.status_code in (200, 204):
+                print(f"🗑️ Memory {memory_id} deleted")
+                return True
+            else:
+                print(f"❌ Failed to delete memory: {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            return False
+
+    def update_memory(
+        self,
+        memory_id: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> bool:
+        """Update or create a memory by ID"""
+        try:
+            response = self.session.put(
+                f"{self.api_url}/memories/{memory_id}",
+                json={"content": content, "metadata": metadata or {}}
+            )
+            if response.status_code in (200, 201):
+                action = "updated" if response.status_code == 200 else "created"
+                print(f"✅ Memory {memory_id} {action}")
+                return True
+            else:
+                print(f"❌ Failed to update memory: {response.text}")
+                return False
+        except Exception as e:
+            print(f"❌ Error: {e}")
+            return False
+
     def interactive_mode(self) -> None:
         """Start interactive chat mode"""
         print("\n🧠 AI Memory Layer - Interactive Mode")
@@ -281,6 +318,16 @@ def main():
     # Export command
     export_parser = subparsers.add_parser("export", help="Export memories")
     export_parser.add_argument("--format", default="json", choices=["json", "csv", "txt"])
+
+    # Delete command
+    delete_parser = subparsers.add_parser("delete", help="Delete a memory by ID")
+    delete_parser.add_argument("id", help="Memory ID")
+
+    # Update command
+    update_parser = subparsers.add_parser("update", help="Update or create a memory")
+    update_parser.add_argument("id", help="Memory ID")
+    update_parser.add_argument("content", help="New memory content")
+    update_parser.add_argument("--metadata", help="JSON metadata")
     
     # Interactive command
     subparsers.add_parser("interactive", help="Start interactive mode")
@@ -319,10 +366,23 @@ def main():
     
     elif args.command == "recent":
         cli.list_recent(args.limit)
-    
+
     elif args.command == "export":
         cli.export_memories(args.format)
-    
+
+    elif args.command == "delete":
+        cli.delete_memory(args.id)
+
+    elif args.command == "update":
+        metadata = None
+        if args.metadata:
+            try:
+                metadata = json.loads(args.metadata)
+            except json.JSONDecodeError:
+                print("❌ Invalid JSON metadata")
+                sys.exit(1)
+        cli.update_memory(args.id, args.content, metadata)
+
     elif args.command == "interactive":
         cli.interactive_mode()
     
