@@ -1,10 +1,9 @@
 import pytest
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
-from api.main import app, get_memory_engine, get_openai_integration
+from api.main import app
 from core.memory_engine import MemoryEngine, Memory
-from tests.conftest import MockEmbeddingProvider
 
 
 class TestAPI:
@@ -21,26 +20,27 @@ class TestAPI:
         return engine
 
     @pytest.fixture
-    def mock_openai_integration(self):
-        """Mock OpenAI integration for testing"""
-        integration = Mock()
-        integration.chat_with_memory.return_value = "Mock AI response"
-        integration.context_builder.build_context.return_value = "Mock context"
-        return integration
+    def mock_direct_openai_chat(self):
+        """Mock DirectOpenAIChat for testing"""
+        chat = Mock()
+        chat.model = "gpt-4o"
+        chat.chat.return_value = ("Mock AI response", ["ctx1", "ctx2"])
+        return chat
 
     @pytest.fixture
-    def client(self, mock_memory_engine, mock_openai_integration):
-        """Test client with mocked dependencies"""
-        app.dependency_overrides[get_memory_engine] = lambda: mock_memory_engine
-        app.dependency_overrides[get_openai_integration] = (
-            lambda: mock_openai_integration
-        )
+    def client(self, mock_memory_engine, mock_direct_openai_chat):
+        """Test client with mocked app state"""
+        app.state.memory_engine = mock_memory_engine
+        app.state.direct_openai_chat = mock_direct_openai_chat
 
-        client = TestClient(app)
-        yield client
+        with patch("api.main.startup_event", new=AsyncMock()), patch(
+            "api.main.shutdown_event", new=AsyncMock()
+        ):
+            client = TestClient(app)
+            yield client
 
-        # Cleanup
-        app.dependency_overrides.clear()
+        app.state.memory_engine = None
+        app.state.direct_openai_chat = None
 
     def test_health_check(self, client, mock_memory_engine):
         """Test health check endpoint"""
@@ -145,7 +145,7 @@ class TestAPI:
         assert response.status_code == 204
         mock_memory_engine.clear_memories.assert_called_once()
 
-    def test_chat_with_memory(self, client, mock_openai_integration):
+    def test_chat_with_memory(self, client, mock_direct_openai_chat):
         """Test chat endpoint"""
         payload = {
             "message": "Hello AI",
@@ -160,13 +160,12 @@ class TestAPI:
         assert response.status_code == 200
         data = response.json()
         assert data["response"] == "Mock AI response"
-        assert data["context_used"] == "Mock context"
+        assert data["context_used"] == "Messages sent to OpenAI: 2 total"
 
-        mock_openai_integration.chat_with_memory.assert_called_once_with(
+        mock_direct_openai_chat.chat.assert_called_once_with(
             message="Hello AI",
+            thread_id="default",
             system_prompt="You are helpful",
-            include_recent=3,
-            include_relevant=3,
             remember_response=True,
         )
 
@@ -179,19 +178,18 @@ class TestAPI:
         response = client.post("/chat", json=payload)
         assert response.status_code == 422
 
-    def test_chat_with_defaults(self, client, mock_openai_integration):
+    def test_chat_with_defaults(self, client, mock_direct_openai_chat):
         """Test chat with default parameters"""
         payload = {"message": "Hello AI"}
 
         response = client.post("/chat", json=payload)
 
         assert response.status_code == 200
-        mock_openai_integration.chat_with_memory.assert_called_once_with(
+        mock_direct_openai_chat.chat.assert_called_once_with(
             message="Hello AI",
+            thread_id="default",
             system_prompt=None,
-            include_recent=5,  # Default
-            include_relevant=5,  # Default
-            remember_response=True,  # Default
+            remember_response=True,
         )
 
     def test_get_stats(self, client, mock_memory_engine):
@@ -235,7 +233,13 @@ class TestAPI:
 
     def test_cors_headers(self, client):
         """Test that CORS headers are present"""
-        response = client.options("/health")
+        response = client.options(
+            "/health",
+            headers={
+                "Origin": "http://test",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
 
         # CORS headers should be present
         assert "access-control-allow-origin" in response.headers
