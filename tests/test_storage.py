@@ -70,10 +70,49 @@ class TestFaissVectorStore:
 
         memory_id = faiss_store.add_memory(memory)
         assert len(faiss_store.memories) == 1
+        assert faiss_store.index.ntotal == 1
+
+        # Ensure memory can be found before deletion
+        results = faiss_store.search(memory.embedding, k=1)
+        assert len(results) == 1
 
         success = faiss_store.delete_memory(memory_id)
         assert success
         assert len(faiss_store.memories) == 0
+        assert faiss_store.index.ntotal == 0
+
+        # Ensure deleted memory no longer appears in search
+        results_after = faiss_store.search(memory.embedding, k=1)
+        assert results_after == []
+
+    def test_delete_memory_removes_from_search(self, faiss_store):
+        """Ensure deleted memories aren't searchable with multiple memories"""
+        mem1 = Memory(
+            content="Memory 1", embedding=np.random.rand(10).astype("float32")
+        )
+        mem2 = Memory(
+            content="Memory 2", embedding=np.random.rand(10).astype("float32")
+        )
+
+        id1 = faiss_store.add_memory(mem1)
+        faiss_store.add_memory(mem2)
+
+        # Sanity check both memories are searchable
+        results = faiss_store.search(mem1.embedding, k=2)
+        assert any(r.content == "Memory 1" for r in results)
+
+        # Delete first memory and ensure it's removed from index
+        faiss_store.delete_memory(id1)
+        assert faiss_store.index.ntotal == len(faiss_store.memories) == 1
+
+        # Search with deleted embedding should not return deleted memory
+        results_after = faiss_store.search(mem1.embedding, k=2)
+        assert all(r.content != "Memory 1" for r in results_after)
+
+        # Remaining memory should still be retrievable
+        results_remaining = faiss_store.search(mem2.embedding, k=1)
+        assert len(results_remaining) == 1
+        assert results_remaining[0].content == "Memory 2"
 
     def test_delete_nonexistent_memory_faiss(self, faiss_store):
         """Test deleting non-existent memory"""
@@ -89,7 +128,7 @@ class TestFaissVectorStore:
         memory = Memory(
             content="Persistent memory", embedding=np.random.rand(10).astype("float32")
         )
-        store1.add_memory(memory)
+        mem_id = store1.add_memory(memory)
 
         # Create new store that should load the index
         store2 = FaissVectorStore(dimension=10, index_path=index_path)
@@ -97,6 +136,12 @@ class TestFaissVectorStore:
         assert store2.index.ntotal == 1
         assert len(store2.memories) == 1
         assert store2.memories[0].content == "Persistent memory"
+
+        # Delete the memory and ensure persistence of deletion
+        store2.delete_memory(mem_id)
+        store3 = FaissVectorStore(dimension=10, index_path=index_path)
+        assert store3.index.ntotal == 0
+        assert len(store3.memories) == 0
 
 
 class TestChromaVectorStore:
