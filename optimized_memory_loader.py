@@ -10,8 +10,7 @@ import sys
 import pickle
 import numpy as np
 from datetime import datetime
-from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 
 from core.memory_engine import Memory
@@ -35,10 +34,10 @@ class OptimizedMemoryLoader:
         self.api_key = os.getenv("OPENAI_API_KEY")
         
     def load_precomputed_memories(
-        self, 
-        memory_json_path: str,
-        faiss_index_path: str,
-        faiss_pkl_path: str
+        self,
+        memory_json_path: Union[str, Path],
+        faiss_index_path: Union[str, Path],
+        faiss_pkl_path: Union[str, Path]
     ) -> tuple[List[Memory], FaissVectorStore]:
         """
         Load memories with pre-computed FAISS embeddings
@@ -51,22 +50,26 @@ class OptimizedMemoryLoader:
         Returns:
             Tuple of (memories_list, vector_store)
         """
+        memory_json_path = Path(memory_json_path)
+        faiss_index_path = Path(faiss_index_path)
+        faiss_pkl_path = Path(faiss_pkl_path)
+
         logger.info("🚀 Starting optimized memory loading...")
-        
+
         # 1. Load memory JSON data
         logger.info(f"📄 Loading memories from {memory_json_path}")
-        with open(memory_json_path, 'r', encoding='utf-8') as f:
+        with memory_json_path.open('r', encoding='utf-8') as f:
             memory_data = json.load(f)
         
         logger.info(f"✅ Loaded {len(memory_data)} memories from JSON")
         
         # 2. Load pre-computed FAISS index directly
         logger.info(f"🔍 Loading pre-computed FAISS index from {faiss_index_path}")
-        
+
         # Create vector store with existing index
         vector_store = FaissVectorStore(
             dimension=1536,  # OpenAI ada-002 dimension
-            index_path=faiss_index_path.replace('.index', '')  # Remove .index extension
+            index_path=str(faiss_index_path.with_suffix(''))  # Remove .index extension
         )
         
         # Verify FAISS index loaded correctly
@@ -143,9 +146,9 @@ class OptimizedMemoryLoader:
     
     def create_optimized_memory_engine(
         self,
-        memory_json_path: str,
-        faiss_index_path: str,
-        faiss_pkl_path: str
+        memory_json_path: Union[str, Path],
+        faiss_index_path: Union[str, Path],
+        faiss_pkl_path: Union[str, Path]
     ):
         """
         Create a memory engine with optimized loading using pre-computed embeddings
@@ -221,13 +224,13 @@ def main():
         print("Example: python optimized_memory_loader.py data/chatgpt_memories.json data/faiss_chatgpt_index.index data/faiss_chatgpt_index.pkl")
         sys.exit(1)
     
-    memory_json = sys.argv[1]
-    faiss_index = sys.argv[2]
-    faiss_pkl = sys.argv[3]
-    
+    memory_json = Path(sys.argv[1])
+    faiss_index = Path(sys.argv[2])
+    faiss_pkl = Path(sys.argv[3])
+
     # Verify files exist
     for file_path in [memory_json, faiss_index, faiss_pkl]:
-        if not os.path.exists(file_path):
+        if not file_path.exists():
             logger.error(f"❌ File not found: {file_path}")
             sys.exit(1)
     

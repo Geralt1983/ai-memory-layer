@@ -5,11 +5,9 @@ Implements 2025 FAISS best practices for fast loading of pre-computed embeddings
 """
 
 import json
-import os
 import numpy as np
 from datetime import datetime
 from typing import List, Dict, Any, Optional, Union
-from dataclasses import dataclass
 from pathlib import Path
 
 from core.memory_engine import Memory, MemoryEngine
@@ -64,7 +62,7 @@ class OptimizedMemoryEngine(MemoryEngine):
     @monitor_performance("load_precomputed_memories")
     def load_precomputed_memories(
         self,
-        memory_json_path: str,
+        memory_json_path: Union[str, Path],
         verify_faiss_alignment: bool = True
     ) -> int:
         """
@@ -78,15 +76,16 @@ class OptimizedMemoryEngine(MemoryEngine):
         Returns:
             Number of memories loaded
         """
+        memory_json_path = Path(memory_json_path)
         logger.info(f"Loading precomputed memories from {memory_json_path}")
-        
-        if not os.path.exists(memory_json_path):
+
+        if not memory_json_path.exists():
             logger.error(f"Memory file not found: {memory_json_path}")
             return 0
-        
+
         try:
             # Load JSON data
-            with open(memory_json_path, 'r', encoding='utf-8') as f:
+            with memory_json_path.open('r', encoding='utf-8') as f:
                 memory_data = json.load(f)
             
             if not memory_data:
