@@ -168,6 +168,7 @@ class FaissVectorStore(VectorStore):
             pass
         return False
 
+
     def save_index(self, path: str) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         faiss.write_index(self.index, f"{path}.index")

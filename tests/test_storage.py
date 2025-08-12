@@ -85,6 +85,35 @@ class TestFaissVectorStore:
         results_after = faiss_store.search(memory.embedding, k=1)
         assert results_after == []
 
+    def test_delete_memory_removes_from_search(self, faiss_store):
+        """Ensure deleted memories aren't searchable with multiple memories"""
+        mem1 = Memory(
+            content="Memory 1", embedding=np.random.rand(10).astype("float32")
+        )
+        mem2 = Memory(
+            content="Memory 2", embedding=np.random.rand(10).astype("float32")
+        )
+
+        id1 = faiss_store.add_memory(mem1)
+        faiss_store.add_memory(mem2)
+
+        # Sanity check both memories are searchable
+        results = faiss_store.search(mem1.embedding, k=2)
+        assert any(r.content == "Memory 1" for r in results)
+
+        # Delete first memory and ensure it's removed from index
+        faiss_store.delete_memory(id1)
+        assert faiss_store.index.ntotal == len(faiss_store.memories) == 1
+
+        # Search with deleted embedding should not return deleted memory
+        results_after = faiss_store.search(mem1.embedding, k=2)
+        assert all(r.content != "Memory 1" for r in results_after)
+
+        # Remaining memory should still be retrievable
+        results_remaining = faiss_store.search(mem2.embedding, k=1)
+        assert len(results_remaining) == 1
+        assert results_remaining[0].content == "Memory 2"
+
     def test_delete_nonexistent_memory_faiss(self, faiss_store):
         """Test deleting non-existent memory"""
         success = faiss_store.delete_memory("999")
