@@ -542,6 +542,81 @@ You are currently supporting a user named Jeremy Kimble, an IT consultant who is
         except Exception as e:
             self.logger.error(f"OpenAI API error: {e}", exc_info=True)
             raise
+
+    def chat_stream(
+        self,
+        message: str,
+        thread_id: str = "default",
+        system_prompt: Optional[str] = None,
+        remember_response: bool = True,
+        temperature: float = 0.7,
+    ):
+        """Stream GPT-4o response tokens incrementally"""
+
+        self.logger.info(
+            f"Processing streaming chat request for thread {thread_id}",
+            extra={"message_length": len(message), "thread_id": thread_id},
+        )
+
+        messages = self._build_messages_array(
+            thread_id=thread_id,
+            user_message=message,
+            system_prompt=system_prompt,
+        )
+
+        assistant_response = ""
+
+        try:
+            stream = self.client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=temperature,
+                top_p=1.0,
+                presence_penalty=0.5,
+                frequency_penalty=0.25,
+                max_tokens=1200,
+                stream=True,
+            )
+
+            for chunk in stream:
+                token = chunk.choices[0].delta.get("content", "")
+                if token:
+                    assistant_response += token
+                    yield token
+
+            if remember_response:
+                self._add_to_conversation(thread_id, "user", message)
+                self._add_to_conversation(thread_id, "assistant", assistant_response)
+                self._detect_and_store_corrections(message, assistant_response, thread_id)
+
+                conversation_title = None
+                if thread_id and len(self.conversations.get(thread_id, [])) <= 2:
+                    conversation_title = self._extract_conversation_title(
+                        message, assistant_response
+                    )
+
+                self.memory_engine.add_memory(
+                    content=f"User: {message}",
+                    role="user",
+                    thread_id=thread_id,
+                    title=conversation_title,
+                    type="history",
+                    importance=0.7,
+                    metadata={"type": "user_message", "thread_id": thread_id},
+                )
+                self.memory_engine.add_memory(
+                    content=f"Assistant: {assistant_response}",
+                    role="assistant",
+                    thread_id=thread_id,
+                    title=conversation_title,
+                    type="history",
+                    importance=0.6,
+                    metadata={"type": "assistant_response", "thread_id": thread_id},
+                )
+
+        except Exception as e:
+            self.logger.error(f"OpenAI streaming error: {e}", exc_info=True)
+            raise
     
     def get_conversation_history(self, thread_id: str) -> List[Dict[str, str]]:
         """Get full conversation history for a thread"""
