@@ -210,12 +210,33 @@ class MemoryEngine:
     
     def get_high_priority_memories(self, limit: int = 3) -> List[Memory]:
         """Get high-priority memories (corrections, identity info) for system context"""
-        high_priority = [m for m in self.memories 
+        high_priority = [m for m in self.memories
                         if m.metadata.get("priority") == "high"]
-        
+
         # Sort by recency
         high_priority.sort(key=lambda m: m.timestamp, reverse=True)
         return high_priority[:limit]
+
+    def get_identity_memories(self, limit: Optional[int] = None) -> List[Memory]:
+        """Return memories classified as identity.
+
+        A memory qualifies as identity if its ``type`` field is "identity" or
+        if its metadata contains ``{"category": "identity"}``. Results are
+        ordered by recency with the most recent first.  If ``limit`` is
+        provided only that many memories are returned.
+        """
+        identity_memories = [
+            m
+            for m in self.memories
+            if m.type == "identity" or m.metadata.get("category") == "identity"
+        ]
+
+        # Return most recent memories first for consistency with other helpers
+        identity_memories.sort(key=lambda m: m.timestamp, reverse=True)
+
+        if limit is not None:
+            return identity_memories[:limit]
+        return identity_memories
 
     @monitor_performance("search_memories")
     def search_memories(self, query: str, k: int = 5, include_importance: bool = True) -> List[Memory]:

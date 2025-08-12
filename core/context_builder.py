@@ -15,16 +15,11 @@ class ContextBuilder:
     ) -> str:
         context_parts = []
         
-        # Always include user profile information
-        profile_memories = self.memory_engine.search_memories("Jeremy wife Ashley kids dogs age", k=10)
-        important_info = []
-        for memory in profile_memories:
-            if memory.relevance_score > 0.5:
-                important_info.append(memory.content)
-        
-        if important_info:
+        # Always include user profile or identity memories
+        identity_memories = self.memory_engine.get_identity_memories()
+        if identity_memories:
             context_parts.append("Key information about Jeremy:")
-            context_parts.extend(important_info[:5])  # Top 5 most relevant
+            context_parts.extend([m.content for m in identity_memories[:5]])
 
         # Add recent memories
         if include_recent > 0:
