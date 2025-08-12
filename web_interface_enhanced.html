@@ -842,27 +842,48 @@
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-            
+
             if (!message) return;
-            
+
             if (!isConnected) {
                 console.warn('Not connected to API, attempting to send anyway...');
             }
-            
+
             // Add user message
             addMessage('user', message);
             input.value = '';
             autoResize(input);
-            
+
             // Show typing indicator with stop button
             isGenerating = true;
             showTyping(true);
-            
+
+            // Create placeholder for assistant message
+            const messagesContainer = document.getElementById('messages');
+            const assistantMessageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const assistantDiv = document.createElement('div');
+            assistantDiv.className = 'message assistant';
+            assistantDiv.id = assistantMessageId;
+            assistantDiv.innerHTML = `
+                <div class="message-avatar">🧠</div>
+                <div class="message-content">
+                    <div class="message-text"></div>
+                    <div class="message-time">${time}</div>
+                    <div class="message-actions"></div>
+                </div>
+            `;
+            messagesContainer.appendChild(assistantDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            const messageTextEl = assistantDiv.querySelector('.message-text');
+            const actionsEl = assistantDiv.querySelector('.message-actions');
+
             // Create abort controller for this request
             currentGenerationController = new AbortController();
-            
+
             try {
-                const response = await fetch(`${API_BASE}/chat`, {
+                const response = await fetch(`${API_BASE}/chat/stream`, {
                     signal: currentGenerationController.signal,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -874,32 +895,85 @@
                         thread_id: conversationThreadId
                     })
                 });
-                
-                const data = await response.json();
-                
-                // Simulate typing delay for better UX
-                setTimeout(() => {
-                    isGenerating = false;
-                    showTyping(false);
-                    addMessage('assistant', data.response);
+
+                if (!response.ok || !response.body) {
+                    throw new Error('Network response was not OK');
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder('utf-8');
+                let fullText = '';
+                let firstChunk = true;
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+
+                    const chunk = decoder.decode(value, { stream: true });
+                    const lines = chunk.split('\n');
+                    for (const line of lines) {
+                        if (line.startsWith('data:')) {
+                            const data = line.slice(5).trim();
+                            if (data === '[DONE]') {
+                                continue;
+                            }
+                            let token = data;
+                            try {
+                                const parsed = JSON.parse(data);
+                                token = parsed.token ?? parsed.message ?? '';
+                            } catch (e) {
+                                // plain text token
+                            }
+                            fullText += token;
+                            messageTextEl.textContent = fullText;
+                            if (firstChunk) {
+                                showTyping(false);
+                                actionsEl.innerHTML = `
+                                    <button class="message-action-btn" onclick="stopGeneration()" title="Stop generating">⏹️ Stop</button>
+                                `;
+                                firstChunk = false;
+                            }
+                        }
+                    }
+                }
+
+                isGenerating = false;
+                actionsEl.innerHTML = `
+                    <button class="message-action-btn" onclick="regenerateMessage('${assistantMessageId}')" title="Regenerate response">🔄 Regenerate</button>
+                    <button class="message-action-btn" onclick="copyMessage('${assistantMessageId}')" title="Copy to clipboard">📋 Copy</button>
+                `;
+
+                if (fullText.trim() !== '') {
+                    currentMessages.push({ sender: 'assistant', content: fullText, timestamp: new Date().toISOString() });
                     updateMemoryCount();
-                    // Trigger title generation if this is one of the first few messages
-                    if (currentMessages.length <= 6) {
+                    if (currentMessages.length >= 3 && currentMessages.length <= 4) {
                         console.log('Triggering title generation with', currentMessages.length, 'messages');
                         generateConversationTitle();
                     }
-                }, 1000);
-                
+                } else {
+                    // No content generated
+                    assistantDiv.remove();
+                }
+
             } catch (error) {
                 isGenerating = false;
                 showTyping(false);
-                if (error.name !== 'AbortError') {
-                    addMessage('assistant', '❌ Sorry, I encountered an error. Please check if the API server is running.');
+                if (error.name === 'AbortError') {
+                    actionsEl.innerHTML = `
+                        <button class="message-action-btn" onclick="regenerateMessage('${assistantMessageId}')" title="Regenerate response">🔄 Regenerate</button>
+                        <button class="message-action-btn" onclick="copyMessage('${assistantMessageId}')" title="Copy to clipboard">📋 Copy</button>
+                    `;
+                } else {
+                    messageTextEl.textContent = '❌ Sorry, I encountered an error. Please check if the API server is running.';
+                    actionsEl.innerHTML = '';
+                }
+                if (messageTextEl.textContent.trim() === '') {
+                    assistantDiv.remove();
                 }
             } finally {
                 currentGenerationController = null;
             }
-            
+
             input.focus();
         }
 
