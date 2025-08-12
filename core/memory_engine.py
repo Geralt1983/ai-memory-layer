@@ -36,6 +36,7 @@ import json
 import os
 from pathlib import Path
 from .logging_config import get_logger, log_memory_operation, monitor_performance
+from .utils import parse_timestamp
 
 
 @dataclass
@@ -72,7 +73,7 @@ class Memory:
         return cls(
             content=data.get("content", data.get("text", "")),  # Support 'text' field
             metadata=data.get("metadata", {}),
-            timestamp=datetime.fromisoformat(data["timestamp"]) if isinstance(data.get("timestamp"), str) else data.get("timestamp", datetime.now()),
+            timestamp=parse_timestamp(data.get("timestamp")) if isinstance(data.get("timestamp"), str) else data.get("timestamp", datetime.now()),
             relevance_score=data.get("relevance_score", 0.0),
             role=data.get("role", "user"),
             thread_id=data.get("thread_id"),

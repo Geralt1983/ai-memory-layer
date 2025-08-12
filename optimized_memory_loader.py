@@ -19,6 +19,7 @@ from integrations.embeddings import OpenAIEmbeddings
 from storage.faiss_store import FaissVectorStore
 from dotenv import load_dotenv
 import logging
+from core.utils import parse_timestamp
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -88,20 +89,8 @@ class OptimizedMemoryLoader:
         for i, mem_data in enumerate(memory_data):
             try:
                 # Parse timestamp
-                timestamp_str = mem_data.get('timestamp')
-                if timestamp_str:
-                    try:
-                        # Handle various timestamp formats
-                        if 'T' in timestamp_str:
-                            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-                        else:
-                            timestamp = datetime.fromtimestamp(float(timestamp_str))
-                        timestamp = timestamp.replace(tzinfo=None)  # Remove timezone for consistency
-                    except:
-                        timestamp = datetime.now()
-                else:
-                    timestamp = datetime.now()
-                
+                timestamp = parse_timestamp(mem_data.get('timestamp'))
+
                 # Create Memory object without embedding (will use FAISS index)
                 memory = Memory(
                     content=mem_data.get('content', ''),
