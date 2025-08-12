@@ -4,35 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Memory Layer - Enhanced Chat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            /* Light theme */
-            --bg-primary: #ffffff;
-            --bg-secondary: #f7f7f8;
-            --bg-tertiary: #ececec;
-            --text-primary: #202123;
-            --text-secondary: #8e8ea0;
-            --border-primary: #d9d9e3;
+            --sidebar-bg: #202123;
+            --chat-bg: #343541;
+            --input-bg: #40414F;
+            --text-primary: #ececec;
+            --text-secondary: #9c9c9c;
             --accent-primary: #10a37f;
             --accent-hover: #0d8f72;
-            --user-bg: #c9c9d3; /* user avatar */
-            --assistant-bg: #f7f7f8;
-            --shadow: rgba(0, 0, 0, 0.1);
-        }
-
-        [data-theme="dark"] {
-            /* Dark theme */
-            --bg-primary: #202123;
-            --bg-secondary: #343541;
-            --bg-tertiary: #444654;
-            --text-primary: #ececf1;
-            --text-secondary: #9ca3af;
+            --assistant-bg: #444654;
+            --user-bg: #343541;
             --border-primary: #565869;
-            --accent-primary: #10a37f;
-            --accent-hover: #0d8f72;
-            --user-bg: #40414f;
-            --assistant-bg: #343541;
-            --shadow: rgba(0, 0, 0, 0.3);
         }
 
         * {
@@ -42,24 +28,27 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
-            background: var(--bg-primary);
+            font-family: 'Inter', system-ui, sans-serif;
+            background: var(--chat-bg);
             color: var(--text-primary);
             height: 100vh;
             display: flex;
-            transition: background-color 0.3s, color 0.3s;
         }
 
         /* Sidebar */
         .sidebar {
-            width: 280px;
-            background: var(--bg-secondary);
+            width: 260px;
+            background: var(--sidebar-bg);
+            color: var(--text-primary);
             border-right: 1px solid var(--border-primary);
-            box-shadow: 2px 0 4px var(--shadow);
             display: flex;
             flex-direction: column;
-            transition: transform 0.3s ease;
-            border-radius: 0 16px 16px 0;
+            transition: width 0.3s ease;
+            overflow: hidden;
+        }
+
+        .sidebar.collapsed {
+            width: 0;
         }
 
         .sidebar-header {
@@ -67,7 +56,6 @@
             border-bottom: 1px solid var(--border-primary);
             display: flex;
             align-items: center;
-            justify-content: space-between;
         }
 
         .new-chat-btn {
@@ -85,21 +73,6 @@
             background: var(--accent-hover);
         }
 
-        .theme-toggle {
-            background: none;
-            border: 1px solid var(--border-primary);
-            color: var(--text-primary);
-            padding: 6px 8px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 16px;
-            transition: all 0.2s;
-        }
-
-        .theme-toggle:hover {
-            background: var(--bg-tertiary);
-        }
-
         .conversations {
             flex: 1;
             overflow-y: auto;
@@ -115,16 +88,53 @@
             color: var(--text-secondary);
             transition: all 0.2s;
             border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .conversation-item:hover {
-            background: var(--bg-tertiary);
+            background: #2a2b32;
             color: var(--text-primary);
         }
 
         .conversation-item.active {
             background: var(--accent-primary);
             color: white;
+        }
+
+        .conversation-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: none;
+            gap: 4px;
+        }
+
+        .conversation-item:hover .conversation-actions {
+            display: flex;
+        }
+
+        .conversation-action-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .conversation-action-btn:hover {
+            background: #2a2b32;
+            color: var(--text-primary);
+        }
+
+        .conversation-item.active .conversation-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .sidebar-footer {
@@ -161,48 +171,34 @@
             min-width: 0;
         }
 
-        .chat-header {
-            padding: 16px 24px;
+        .top-bar {
+            height: 48px;
+            background: var(--chat-bg);
             border-bottom: 1px solid var(--border-primary);
-            background: var(--bg-primary);
             display: flex;
             align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 1px 2px var(--shadow);
-            border-radius: 16px 16px 0 0;
+            gap: 16px;
+            padding: 0 16px;
+        }
+
+        .menu-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 20px;
+            cursor: pointer;
         }
 
         .chat-title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 600;
-        }
-
-        .header-controls {
-            display: flex;
-            gap: 8px;
-        }
-
-        .control-btn {
-            background: none;
-            border: 1px solid var(--border-primary);
-            color: var(--text-secondary);
-            padding: 6px 12px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 12px;
-            transition: all 0.2s;
-        }
-
-        .control-btn:hover {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
         }
 
         .chat-messages {
             flex: 1;
             overflow-y: auto;
             padding: 24px;
-            background: var(--bg-primary);
+            background: var(--chat-bg);
         }
 
         .message {
@@ -212,41 +208,42 @@
             max-width: 800px;
             margin-left: auto;
             margin-right: auto;
-            padding: 0 16px;
+        }
+
+        .message-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .message.user .message-avatar {
+            background: var(--user-bg);
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: var(--accent-primary);
+            color: white;
         }
 
         .message-content {
             flex: 1;
             min-width: 0;
-            background: var(--bg-secondary);
-            padding: 12px 16px;
-            border-radius: 16px;
-            box-shadow: 0 1px 2px var(--shadow);
+            padding: 8px 12px;
+            border-radius: 8px;
         }
 
         .message.user .message-content {
-            background: var(--bg-primary);
+            background: var(--user-bg);
         }
 
-        [data-theme="dark"] .message.assistant .message-content {
-            background: var(--bg-tertiary);
-        }
-
-        [data-theme="dark"] .message.user .message-content {
-            background: var(--bg-secondary);
-        }
-
-        .message-avatar {
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
-            overflow: hidden;
-            flex-shrink: 0;
-        }
-
-        .message-avatar svg {
-            width: 100%;
-            height: 100%;
+        .message.assistant .message-content {
+            background: var(--assistant-bg);
         }
 
         .message-text {
@@ -278,7 +275,7 @@
             padding: 4px 8px;
             font-size: 12px;
             background: transparent;
-            border: 1px solid var(--border-color);
+            border: 1px solid var(--border-primary);
             border-radius: 4px;
             color: var(--text-secondary);
             cursor: pointer;
@@ -286,7 +283,7 @@
         }
 
         .message-action-btn:hover {
-            background: var(--bg-secondary);
+            background: var(--chat-bg);
             color: var(--text-primary);
             border-color: var(--text-secondary);
         }
@@ -331,10 +328,8 @@
         /* Input area */
         .input-area {
             padding: 24px;
-            background: var(--bg-primary);
+            background: var(--input-bg);
             border-top: 1px solid var(--border-primary);
-            box-shadow: 0 -1px 2px var(--shadow);
-            border-radius: 0 0 16px 16px;
         }
 
         .input-container {
@@ -346,11 +341,10 @@
         .input-wrapper {
             display: flex;
             align-items: flex-end;
-            background: var(--bg-secondary);
+            background: var(--chat-bg);
             border: 1px solid var(--border-primary);
-            border-radius: 16px;
+            border-radius: 12px;
             padding: 12px;
-            box-shadow: 0 1px 2px var(--shadow);
             transition: border-color 0.2s;
         }
 
@@ -393,7 +387,7 @@
         }
 
         .voice-btn:hover, .send-btn:hover {
-            background: var(--bg-tertiary);
+            background: #2a2b32;
             color: var(--text-primary);
         }
 
@@ -419,14 +413,9 @@
         /* Mobile responsive */
         @media (max-width: 768px) {
             .sidebar {
-                transform: translateX(-100%);
                 position: fixed;
                 height: 100vh;
                 z-index: 1000;
-            }
-
-            .sidebar.open {
-                transform: translateX(0);
             }
 
             .chat-messages {
@@ -510,12 +499,11 @@
         }
     </style>
 </head>
-<body data-theme="light">
+<body>
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <button class="new-chat-btn" onclick="startNewChat()">+ New chat</button>
-            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+            <button class="new-chat-btn" onclick="startNewChat()">+ New Chat</button>
         </div>
         
         <div class="conversations" id="conversations">
@@ -541,39 +529,20 @@
 
     <!-- Main content -->
     <div class="main-content">
-        <div class="chat-header">
-            <div class="chat-title">
-                AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small>
-                <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">↻ Reload</button>
-                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">🆕 New Chat</button>
-            </div>
-            <div class="header-controls">
-                <button class="control-btn" onclick="searchMemories()">🔍 Search</button>
-                <button class="control-btn" onclick="showMemoryStats()">📊 Stats</button>
-                <button class="control-btn" onclick="exportMemories()">💾 Export</button>
-            </div>
+        <div class="top-bar">
+            <button class="menu-btn" onclick="toggleSidebar()">☰</button>
+            <div class="chat-title">AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small></div>
         </div>
-        
         <div class="chat-messages" id="messages">
             <div class="message assistant">
-                <div class="message-avatar">
-                    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
-                        <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
-                    </svg>
-                </div>
+                <div class="message-avatar">🧠</div>
                 <div class="message-content">
                     <div class="message-text">👋 Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
                     <div class="message-time">Just now</div>
                 </div>
             </div>
             <div class="message assistant">
-                <div class="message-avatar">
-                    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
-                        <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
-                    </svg>
-                </div>
+                <div class="message-avatar">🧠</div>
                 <div class="message-content">
                     <div class="message-text">Try telling me about your preferences, projects, or ask me anything. I'll remember it all for our future conversations!</div>
                     <div class="message-time">Just now</div>
@@ -582,12 +551,7 @@
         </div>
         
         <div class="typing-indicator" id="typing">
-            <div class="message-avatar">
-                <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
-                    <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
-                </svg>
-            </div>
+            <div class="message-avatar" style="background: var(--accent-primary); color: white;">🧠</div>
             <div class="typing-dots">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -629,18 +593,6 @@
 
     <script>
         const API_BASE = 'http://localhost:8000';
-        const assistantAvatar = `
-            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
-                <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
-            </svg>
-        `;
-        const userAvatar = `
-            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="16" cy="16" r="16" style="fill: var(--user-bg);" />
-                <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">U</text>
-            </svg>
-        `;
         let isConnected = false;
         let conversations = [];
         let currentConversationId = 'current';
@@ -654,15 +606,6 @@
         if (!conversationThreadId) {
             conversationThreadId = `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             localStorage.setItem('conversationThreadId', conversationThreadId);
-        }
-
-        // Start a new conversation with fresh context
-        function startNewConversation() {
-            if (confirm('Start a new conversation? This will clear the current conversation context.')) {
-                localStorage.removeItem('conversationThreadId');
-                localStorage.removeItem('conversations');
-                location.reload();
-            }
         }
 
         // Initialize
@@ -713,8 +656,14 @@
                 });
                 
                 convDiv.innerHTML = `
-                    <div>${conv.title}</div>
-                    <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    <div class="conversation-info">
+                        <div>${conv.title}</div>
+                        <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    </div>
+                    <div class="conversation-actions">
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); renameConversation('${conv.id}')">✏️</button>
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">🗑️</button>
+                    </div>
                 `;
                 
                 container.appendChild(convDiv);
@@ -726,34 +675,13 @@
                 currentDiv.className = 'conversation-item active';
                 currentDiv.onclick = () => selectConversation(currentDiv, 'current');
                 currentDiv.innerHTML = `
-                    <div>Current Chat</div>
-                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                    <div class="conversation-info">
+                        <div>Current Chat</div>
+                        <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                    </div>
                 `;
                 container.appendChild(currentDiv);
             }
-        }
-
-        // Theme management
-        function toggleTheme() {
-            const body = document.body;
-            const themeBtn = document.querySelector('.theme-toggle');
-            
-            if (body.getAttribute('data-theme') === 'dark') {
-                body.setAttribute('data-theme', 'light');
-                themeBtn.textContent = '🌙';
-                localStorage.setItem('theme', 'light');
-            } else {
-                body.setAttribute('data-theme', 'dark');
-                themeBtn.textContent = '☀️';
-                localStorage.setItem('theme', 'dark');
-            }
-        }
-
-        // Load saved theme
-        function loadTheme() {
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.body.setAttribute('data-theme', savedTheme);
-            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
         }
 
         // Auto-resize textarea
@@ -885,27 +813,33 @@
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-            
+
             if (!message) return;
-            
+
             if (!isConnected) {
                 console.warn('Not connected to API, attempting to send anyway...');
             }
-            
+
             // Add user message
             addMessage('user', message);
             input.value = '';
             autoResize(input);
-            
+
             // Show typing indicator with stop button
             isGenerating = true;
             showTyping(true);
-            
+
             // Create abort controller for this request
             currentGenerationController = new AbortController();
-            
+
+            // Placeholder assistant message (not added to history yet)
+            const msgId = addMessage('assistant', '', null, true);
+            const messageDiv = document.getElementById(msgId);
+            const textElem = messageDiv.querySelector('.message-text');
+            let fullResponse = '';
+
             try {
-                const response = await fetch(`${API_BASE}/chat`, {
+                const response = await fetch(`${API_BASE}/chat/stream`, {
                     signal: currentGenerationController.signal,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -917,37 +851,59 @@
                         thread_id: conversationThreadId
                     })
                 });
-                
-                const data = await response.json();
-                
-                // Simulate typing delay for better UX
-                setTimeout(() => {
-                    isGenerating = false;
-                    showTyping(false);
-                    addMessage('assistant', data.response);
-                    updateMemoryCount();
-                    // Trigger title generation if this is one of the first few messages
-                    if (currentMessages.length <= 6) {
-                        console.log('Triggering title generation with', currentMessages.length, 'messages');
-                        generateConversationTitle();
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop();
+                    for (const part of parts) {
+                        const line = part.trim();
+                        if (line.startsWith('data: ')) {
+                            const token = line.slice(6);
+                            if (token === '[DONE]') {
+                                break;
+                            }
+                            textElem.textContent += token;
+                            fullResponse += token;
+                        }
                     }
-                }, 1000);
-                
+                }
+
+                // Add to history after completion
+                currentMessages.push({
+                    sender: 'assistant',
+                    content: fullResponse,
+                    timestamp: new Date().toISOString()
+                });
+
+                updateMemoryCount();
+
+                if (currentMessages.length >= 3 && currentMessages.length <= 6) {
+                    console.log('Triggering title generation with', currentMessages.length, 'messages');
+                    generateConversationTitle();
+                }
+
             } catch (error) {
-                isGenerating = false;
-                showTyping(false);
                 if (error.name !== 'AbortError') {
-                    addMessage('assistant', '❌ Sorry, I encountered an error. Please check if the API server is running.');
+                    textElem.textContent = '❌ Sorry, I encountered an error. Please check if the API server is running.';
                 }
             } finally {
+                isGenerating = false;
+                showTyping(false);
                 currentGenerationController = null;
             }
-            
+
             input.focus();
         }
 
         // Add message to chat
-        function addMessage(sender, content, messageId = null) {
+        function addMessage(sender, content, messageId = null, skipHistory = false) {
             const messagesContainer = document.getElementById('messages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
@@ -959,7 +915,7 @@
             messageDiv.id = messageId;
             
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const avatar = sender === 'user' ? userAvatar : assistantAvatar;
+            const avatar = sender === 'user' ? '👤' : '🧠';
             
             let actionsHTML = '';
             if (sender === 'assistant') {
@@ -986,19 +942,21 @@
             
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
-            // Track message for conversation history
-            currentMessages.push({
-                sender: sender,
-                content: content,
-                timestamp: new Date().toISOString()
-            });
-            
-            // Generate title after we have enough context (2+ exchanges)
-            if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
-                console.log('Triggering title generation with', currentMessages.length, 'messages');
-                generateConversationTitle();
+
+            if (!skipHistory) {
+                currentMessages.push({
+                    sender: sender,
+                    content: content,
+                    timestamp: new Date().toISOString()
+                });
+
+                if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
+                    console.log('Triggering title generation with', currentMessages.length, 'messages');
+                    generateConversationTitle();
+                }
             }
+
+            return messageId;
         }
 
         // Generate conversation title using AI
@@ -1198,12 +1156,7 @@
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
-                    <div class="message-avatar">
-                        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                            <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
-                            <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
-                        </svg>
-                    </div>
+                    <div class="message-avatar">🧠</div>
                     <div class="message-content">
                         <div class="message-text">👋 Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
                         <div class="message-time">Just now</div>
@@ -1245,12 +1198,7 @@
                 currentMessages = [];
                 document.getElementById('messages').innerHTML = `
                     <div class="message assistant">
-                        <div class="message-avatar">
-                            <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
-                                <circle cx="16" cy="16" r="16" style="fill: var(--accent-primary);" />
-                                <text x="16" y="21" text-anchor="middle" font-size="12" fill="#fff">GPT</text>
-                            </svg>
-                        </div>
+                        <div class="message-avatar">🧠</div>
                         <div class="message-content">
                             <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
                             <div class="message-time">Just now</div>
@@ -1260,10 +1208,14 @@
             }
             
             // Update active state
-            document.querySelectorAll('.conversation-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            element.classList.add('active');
+        document.querySelectorAll('.conversation-item').forEach(item => {
+            item.classList.remove('active');
+        });
+        element.classList.add('active');
+    }
+
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('collapsed');
         }
 
         function loadConversationMessages(messages) {
@@ -1275,7 +1227,7 @@
                 messageDiv.className = `message ${msg.sender}`;
                 
                 const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const avatar = msg.sender === 'user' ? userAvatar : assistantAvatar;
+                const avatar = msg.sender === 'user' ? '👤' : '🧠';
                 
                 messageDiv.innerHTML = `
                     <div class="message-avatar">${avatar}</div>
@@ -1289,6 +1241,50 @@
             });
             
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function renameConversation(id) {
+            const conv = conversations.find(c => c.id === id);
+            if (!conv) return;
+            const newTitle = prompt('Rename conversation:', conv.title);
+            if (newTitle && newTitle.trim()) {
+                conv.title = newTitle.trim();
+                saveConversations();
+                updateConversationsList();
+            }
+        }
+
+        function deleteConversation(id) {
+            const index = conversations.findIndex(c => c.id === id);
+            if (index === -1) return;
+            if (!confirm('Delete this conversation?')) return;
+
+            const wasActive = currentConversationId === id;
+            conversations.splice(index, 1);
+            saveConversations();
+
+            if (wasActive) {
+                if (conversations.length > 0) {
+                    const nextConv = conversations[0];
+                    currentConversationId = nextConv.id;
+                    currentMessages = [...nextConv.messages];
+                    loadConversationMessages(nextConv.messages);
+                } else {
+                    currentConversationId = 'current';
+                    currentMessages = [];
+                    document.getElementById('messages').innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-avatar">🧠</div>
+                            <div class="message-content">
+                                <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            updateConversationsList();
         }
 
         // Search memories
@@ -1379,7 +1375,6 @@ ${Object.entries(data.memory_types).map(([type, count]) => `• ${type}: ${count
 
         // Initialize on load
         window.addEventListener('load', () => {
-            loadTheme();
             init();
         });
         

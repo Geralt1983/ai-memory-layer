@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Memory Layer - Enhanced Chat</title>
+    <style>
+        :root {
+            /* Light theme - ChatGPT colors */
+            --bg-primary: #ffffff;
+            --bg-secondary: #f7f7f8;
+            --bg-tertiary: #ececec;
+            --text-primary: #2e2e2e;
+            --text-secondary: #8e8ea0;
+            --border-primary: #d9d9e3;
+            --accent-primary: #10a37f;
+            --accent-hover: #0d8f72;
+            --user-bg: #ffffff;
+            --assistant-bg: #f7f7f8;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        [data-theme="dark"] {
+            /* Dark theme - ChatGPT colors */
+            --bg-primary: #343541;
+            --bg-secondary: #40414f;
+            --bg-tertiary: #202123;
+            --text-primary: #ececec;
+            --text-secondary: #9c9c9c;
+            --border-primary: #4a4a4a;
+            --accent-primary: #10a37f;
+            --accent-hover: #0d8f72;
+            --user-bg: #343541;
+            --assistant-bg: #444654;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: "Inter", "Söhne", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            display: flex;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-primary);
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .new-chat-btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .new-chat-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        .theme-toggle {
+            background: none;
+            border: 1px solid var(--border-primary);
+            color: var(--text-primary);
+            padding: 6px 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: all 0.2s;
+        }
+
+        .theme-toggle:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .conversations {
+            flex: 1;
+            overflow-y: auto;
+            padding: 8px;
+        }
+
+        .conversation-item {
+            padding: 12px;
+            margin: 4px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            color: var(--text-secondary);
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+<<<<<<< HEAD
+        }
+
+        .conversation-details {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: flex;
+            gap: 4px;
+        }
+
+        .conversation-actions button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-secondary);
+        }
+
+        .conversation-actions button:hover {
+            color: var(--text-primary);
+        }
+
+        .conversation-title-input {
+            width: 100%;
+            font-size: 14px;
+            color: var(--text-primary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 4px;
+=======
+>>>>>>> main
+        }
+
+        .conversation-item:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .conversation-item.active {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .conversation-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: none;
+            gap: 4px;
+        }
+
+        .conversation-item:hover .conversation-actions {
+            display: flex;
+        }
+
+        .conversation-action-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .conversation-action-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .conversation-item.active .conversation-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .sidebar-footer {
+            padding: 16px;
+            border-top: 1px solid var(--border-primary);
+        }
+
+        .memory-stats {
+            font-size: 12px;
+            color: var(--text-secondary);
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10a37f;
+            margin-right: 6px;
+        }
+
+        .status-indicator.offline {
+            background: #ef4444;
+        }
+
+        /* Main chat area */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+
+        .chat-header {
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--border-primary);
+            background: var(--bg-primary);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 8px;
+        }
+
+        .control-btn {
+            background: none;
+            border: 1px solid var(--border-primary);
+            color: var(--text-secondary);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .control-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            background: var(--bg-primary);
+        }
+
+        .message {
+            margin-bottom: 24px;
+            display: flex;
+            gap: 16px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .message-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .message-avatar img {
+            width: 20px;
+            height: 20px;
+            filter: invert(1);
+        }
+
+        .message.user .message-avatar {
+            background: var(--user-bg);
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .message-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .message-text {
+            line-height: 1.6;
+            font-size: 16px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .message-time {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        .message-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .message:hover .message-actions {
+            opacity: 1;
+        }
+
+        .message-action-btn {
+            padding: 4px 8px;
+            font-size: 12px;
+            background: transparent;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .message-action-btn:hover {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border-color: var(--text-secondary);
+        }
+
+        .message-action-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .feedback-btn.selected {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
+        }
+
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 16px;
+            max-width: 800px;
+            margin: 0 auto 24px;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+            padding: 16px;
+            background: var(--assistant-bg);
+            border-radius: 16px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-secondary);
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { opacity: 0.3; transform: scale(1); }
+            30% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* Input area */
+        .input-area {
+            padding: 24px;
+            background: var(--bg-primary);
+            border-top: 1px solid var(--border-primary);
+        }
+
+        .input-container {
+            max-width: 800px;
+            margin: 0 auto;
+            position: relative;
+        }
+
+        .input-wrapper {
+            display: flex;
+            align-items: flex-end;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 12px;
+            padding: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .input-wrapper:focus-within {
+            border-color: var(--accent-primary);
+        }
+
+        .message-input {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            font-size: 16px;
+            color: var(--text-primary);
+            resize: none;
+            min-height: 24px;
+            max-height: 200px;
+            line-height: 1.5;
+        }
+
+        .message-input::placeholder {
+            color: var(--text-secondary);
+        }
+
+        .warning-footer {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 8px;
+            border-top: 1px solid var(--border-primary);
+            background: var(--bg-primary);
+        }
+
+        .input-controls {
+            display: flex;
+            gap: 8px;
+            margin-left: 8px;
+        }
+
+        .voice-btn, .send-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            font-size: 18px;
+        }
+
+        .voice-btn:hover, .send-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .send-btn.active {
+            color: var(--accent-primary);
+        }
+
+        .voice-btn.recording {
+            color: #ef4444;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Mobile responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                position: fixed;
+                height: 100vh;
+                z-index: 1000;
+            }
+
+            .sidebar.open {
+                transform: translateX(0);
+            }
+
+            .chat-messages {
+                padding: 16px;
+            }
+
+            .input-area {
+                padding: 16px;
+            }
+
+            .message {
+                gap: 12px;
+            }
+        }
+
+        /* Cursor blink effect */
+        .cursor-blink::after {
+            content: '|';
+            animation: blink 1s infinite;
+            color: var(--text-secondary);
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        /* Smooth message animations */
+        .message {
+            animation: slideInUp 0.3s ease-out;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Voice recording indicator */
+        .voice-recording {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+            z-index: 2000;
+        }
+
+        .voice-wave {
+            display: flex;
+            gap: 2px;
+        }
+
+        .voice-bar {
+            width: 3px;
+            height: 20px;
+            background: #ef4444;
+            border-radius: 2px;
+            animation: wave 1s infinite;
+        }
+
+        .voice-bar:nth-child(2) { animation-delay: 0.1s; }
+        .voice-bar:nth-child(3) { animation-delay: 0.2s; }
+        .voice-bar:nth-child(4) { animation-delay: 0.3s; }
+        .voice-bar:nth-child(5) { animation-delay: 0.4s; }
+
+        @keyframes wave {
+            0%, 100% { height: 20px; }
+            50% { height: 10px; }
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <button class="new-chat-btn" onclick="startNewChat()">+ New chat</button>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
+        </div>
+        
+        <div class="conversations" id="conversations">
+            <div class="conversation-item active" onclick="selectConversation(this)">
+                <div class="conversation-info">
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sidebar-footer">
+            <div class="memory-stats">
+                <div>
+                    <span class="status-indicator" id="status-indicator"></span>
+                    <span id="connection-status">Connecting...</span>
+                </div>
+            </div>
+            <div class="memory-stats">
+                <span>Memories: <span id="memory-count">0</span></span>
+                <span id="vector-store-type">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="main-content">
+        <div class="chat-header">
+            <div class="chat-title">
+                AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small>
+                <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">↻ Reload</button>
+                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">🆕 New Chat</button>
+            </div>
+            <div class="header-controls">
+                <button class="control-btn" onclick="searchMemories()">🔍 Search</button>
+                <button class="control-btn" onclick="showMemoryStats()">📊 Stats</button>
+                <button class="control-btn" onclick="exportMemories()">💾 Export</button>
+            </div>
+        </div>
+        
+        <div class="chat-messages" id="messages">
+            <div class="message assistant">
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
+                <div class="message-content">
+                    <div class="message-text">👋 Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
+                    <div class="message-time">Just now</div>
+                </div>
+            </div>
+            <div class="message assistant">
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
+                <div class="message-content">
+                    <div class="message-text">Try telling me about your preferences, projects, or ask me anything. I'll remember it all for our future conversations!</div>
+                    <div class="message-time">Just now</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="typing-indicator" id="typing">
+            <div class="message-avatar" style="background: var(--accent-primary);"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
+            <div class="typing-dots">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>
+        
+        <div class="input-area">
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea
+                        class="message-input"
+                        id="messageInput"
+                        placeholder="Message ChatGPT…"
+                        rows="1"
+                        onkeydown="handleKeyDown(event)"
+                        oninput="autoResize(this)"
+                    ></textarea>
+                    <div class="input-controls">
+                        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice input">🎤</button>
+                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">➤</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="warning-footer">ChatGPT can make mistakes. Consider checking important information.</div>
+    </div>
+
+    <!-- Voice recording indicator -->
+    <div class="voice-recording" id="voiceRecording">
+        <div class="voice-wave">
+            <div class="voice-bar"></div>
+            <div class="voice-bar"></div>
+            <div class="voice-bar"></div>
+            <div class="voice-bar"></div>
+            <div class="voice-bar"></div>
+        </div>
+        <div>Listening... Click to stop</div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let isConnected = false;
+        let conversations = [];
+        let currentConversationId = 'current';
+        let currentMessages = [];
+        let isRecording = false;
+        let recognition = null;
+        let isGenerating = false;
+        let currentGenerationController = null;
+        const messageFeedback = {};
+        // Get or create persistent conversation thread ID
+        let conversationThreadId = localStorage.getItem('conversationThreadId');
+        if (!conversationThreadId) {
+            conversationThreadId = `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem('conversationThreadId', conversationThreadId);
+        }
+
+        // Start a new conversation with fresh context
+        function startNewConversation() {
+            if (confirm('Start a new conversation? This will clear the current conversation context.')) {
+                localStorage.removeItem('conversationThreadId');
+                localStorage.removeItem('conversations');
+                location.reload();
+            }
+        }
+
+        // Initialize
+        async function init() {
+            await checkConnection();
+            await updateMemoryCount();
+            loadConversations();
+            initVoiceRecognition();
+            document.getElementById('messageInput').focus();
+            
+            // Add cursor blink effect to empty input
+            const input = document.getElementById('messageInput');
+            if (!input.value) {
+                input.classList.add('cursor-blink');
+            }
+        }
+
+        // Load conversations from localStorage
+        function loadConversations() {
+            const saved = localStorage.getItem('ai-memory-conversations');
+            console.log('Loading conversations from localStorage:', saved);
+            if (saved) {
+                conversations = JSON.parse(saved);
+                console.log('Loaded conversations:', conversations);
+                updateConversationsList();
+            }
+        }
+
+        // Save conversations to localStorage
+        function saveConversations() {
+            console.log('Saving conversations to localStorage:', conversations);
+            localStorage.setItem('ai-memory-conversations', JSON.stringify(conversations));
+        }
+
+        // Update conversations list in sidebar
+        function updateConversationsList() {
+            const container = document.getElementById('conversations');
+            container.innerHTML = '';
+
+            conversations.forEach((conv) => {
+                const convDiv = document.createElement('div');
+                convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
+                convDiv.onclick = () => selectConversation(convDiv, conv.id);
+
+                const timeStr = new Date(conv.lastMessage).toLocaleDateString([], {
+                    month: 'short',
+                    day: 'numeric'
+                });
+
+                convDiv.innerHTML = `
+<<<<<<< HEAD
+                    <div class="conversation-details">
+                        <div class="conversation-title">${conv.title}</div>
+                        <div class="conversation-time" style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    </div>
+                    <div class="conversation-actions">
+                        <button class="rename-btn" title="Rename">✏️</button>
+                        <button class="delete-btn" title="Delete">🗑️</button>
+                    </div>
+                `;
+
+                convDiv.querySelector('.rename-btn').onclick = (e) => renameConversation(e, conv.id);
+                convDiv.querySelector('.delete-btn').onclick = (e) => deleteConversation(e, conv.id);
+
+=======
+                    <div class="conversation-info">
+                        <div>${conv.title}</div>
+                        <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    </div>
+                    <div class="conversation-actions">
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); renameConversation('${conv.id}')">✏️</button>
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">🗑️</button>
+                    </div>
+                `;
+
+>>>>>>> main
+                container.appendChild(convDiv);
+            });
+
+            // Add current chat if no conversations exist
+            if (conversations.length === 0) {
+                const currentDiv = document.createElement('div');
+                currentDiv.className = 'conversation-item active';
+                currentDiv.onclick = () => selectConversation(currentDiv, 'current');
+                currentDiv.innerHTML = `
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                `;
+                container.appendChild(currentDiv);
+            }
+        }
+
+<<<<<<< HEAD
+        function renameConversation(event, conversationId) {
+            event.stopPropagation();
+            const convDiv = event.target.closest('.conversation-item');
+            const titleEl = convDiv.querySelector('.conversation-title');
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = titleEl.textContent;
+            input.className = 'conversation-title-input';
+            convDiv.querySelector('.conversation-details').replaceChild(input, titleEl);
+            input.focus();
+            input.select();
+
+            const finish = () => {
+                const newTitle = input.value.trim() || 'Untitled';
+                const conv = conversations.find(c => c.id === conversationId);
+                if (conv) {
+                    conv.title = newTitle;
+                    saveConversations();
+                }
+                updateConversationsList();
+            };
+
+            input.addEventListener('blur', finish);
+            input.addEventListener('keydown', e => {
+                if (e.key === 'Enter') {
+                    finish();
+                } else if (e.key === 'Escape') {
+                    updateConversationsList();
+                }
+            });
+        }
+
+        function deleteConversation(event, conversationId) {
+            event.stopPropagation();
+            conversations = conversations.filter(c => c.id !== conversationId);
+            saveConversations();
+            if (currentConversationId === conversationId) {
+                currentMessages = [];
+                startNewChat();
+            } else {
+=======
+        function renameConversation(id) {
+            const conv = conversations.find(c => c.id === id);
+            if (!conv) return;
+            const newTitle = prompt('Rename conversation:', conv.title);
+            if (newTitle && newTitle.trim()) {
+                conv.title = newTitle.trim();
+                saveConversations();
+>>>>>>> main
+                updateConversationsList();
+            }
+        }
+
+<<<<<<< HEAD
+=======
+        function deleteConversation(id) {
+            const index = conversations.findIndex(c => c.id === id);
+            if (index === -1) return;
+            if (!confirm('Delete this conversation?')) return;
+
+            const wasActive = currentConversationId === id;
+            conversations.splice(index, 1);
+            saveConversations();
+
+            if (wasActive) {
+                if (conversations.length > 0) {
+                    const nextConv = conversations[0];
+                    currentConversationId = nextConv.id;
+                    currentMessages = [...nextConv.messages];
+                    loadConversationMessages(nextConv.messages);
+                } else {
+                    currentConversationId = 'current';
+                    currentMessages = [];
+                    document.getElementById('messages').innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-avatar">🧠</div>
+                            <div class="message-content">
+                                <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            updateConversationsList();
+        }
+
+>>>>>>> main
+        // Theme management
+        function toggleTheme() {
+            const body = document.body;
+            const themeBtn = document.querySelector('.theme-toggle');
+            
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.setAttribute('data-theme', 'light');
+                themeBtn.textContent = '🌙';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                themeBtn.textContent = '☀️';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+
+        // Load saved theme
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.setAttribute('data-theme', savedTheme);
+            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
+        }
+
+        // Auto-resize textarea
+        function autoResize(textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 200) + 'px';
+            
+            // Update send button state
+            const sendBtn = document.getElementById('sendBtn');
+            if (textarea.value.trim()) {
+                sendBtn.classList.add('active');
+                textarea.classList.remove('cursor-blink');
+            } else {
+                sendBtn.classList.remove('active');
+                textarea.classList.add('cursor-blink');
+            }
+        }
+
+        // Connection check
+        async function checkConnection() {
+            try {
+                const response = await fetch(`${API_BASE}/health`);
+                const data = await response.json();
+                isConnected = response.ok;
+                console.log('Connection check:', isConnected, data);
+                
+                const statusIndicator = document.getElementById('status-indicator');
+                const statusText = document.getElementById('connection-status');
+                const vectorStoreType = document.getElementById('vector-store-type');
+                
+                if (isConnected) {
+                    statusIndicator.className = 'status-indicator';
+                    statusText.textContent = 'Connected';
+                    vectorStoreType.textContent = data.vector_store_type || 'Unknown';
+                } else {
+                    statusIndicator.className = 'status-indicator offline';
+                    statusText.textContent = 'API Error';
+                    vectorStoreType.textContent = 'Offline';
+                }
+            } catch (error) {
+                isConnected = false;
+                document.getElementById('status-indicator').className = 'status-indicator offline';
+                document.getElementById('connection-status').textContent = 'API Offline';
+                document.getElementById('vector-store-type').textContent = 'Offline';
+            }
+        }
+
+        // Update memory count
+        async function updateMemoryCount() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/memories/stats`);
+                const data = await response.json();
+                document.getElementById('memory-count').textContent = data.total_memories;
+            } catch (error) {
+                console.error('Failed to fetch memory count:', error);
+            }
+        }
+
+        // Handle key presses
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
+        }
+
+        // Copy message to clipboard
+        async function copyMessage(messageId) {
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+            
+            const messageText = messageDiv.querySelector('.message-text').textContent;
+            try {
+                await navigator.clipboard.writeText(messageText);
+                // Show feedback
+                const copyBtn = messageDiv.querySelector('button[onclick*="copyMessage"]');
+                const originalText = copyBtn.innerHTML;
+                copyBtn.innerHTML = '✅ Copied!';
+                setTimeout(() => {
+                    copyBtn.innerHTML = originalText;
+                }, 2000);
+            } catch (err) {
+                console.error('Failed to copy:', err);
+            }
+        }
+
+        // Stop current generation
+        function stopGeneration() {
+            if (currentGenerationController) {
+                currentGenerationController.abort();
+                currentGenerationController = null;
+                isGenerating = false;
+                showTyping(false);
+            }
+        }
+
+        // Regenerate message
+        async function regenerateMessage(messageId) {
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+            
+            // Find the corresponding message in currentMessages
+            const messageElement = messageDiv.querySelector('.message-text').textContent;
+            const messageIndex = currentMessages.findIndex(msg => 
+                msg.content === messageElement && msg.sender === 'assistant'
+            );
+            
+            if (messageIndex === -1 || messageIndex === 0) return;
+            
+            // Get the previous user message
+            const userMessage = currentMessages[messageIndex - 1];
+            if (!userMessage || userMessage.sender !== 'user') return;
+            
+            // Remove this message and all subsequent messages from currentMessages
+            currentMessages = currentMessages.slice(0, messageIndex);
+            
+            // Remove the assistant message from DOM
+            messageDiv.remove();
+            
+            // Resend the user message to regenerate response
+            const input = document.getElementById('messageInput');
+            input.value = userMessage.content;
+            await sendMessage();
+        }
+
+        // Edit user message
+        function editMessage(messageId) {
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+
+            const contentDiv = messageDiv.querySelector('.message-content');
+            const textDiv = contentDiv.querySelector('.message-text');
+            const originalText = textDiv.textContent;
+
+            // Create textarea for editing
+            const textarea = document.createElement('textarea');
+            textarea.className = 'edit-textarea';
+            textarea.value = originalText;
+            autoResize(textarea);
+
+            contentDiv.insertBefore(textarea, textDiv);
+            textDiv.style.display = 'none';
+
+            const actionsDiv = contentDiv.querySelector('.message-actions');
+            actionsDiv.innerHTML = '';
+
+            // Save edits
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'message-action-btn';
+            saveBtn.textContent = '💾 Save';
+            saveBtn.onclick = async () => {
+                const newText = textarea.value.trim();
+                if (!newText) return;
+
+                // Remove this user/assistant pair from history
+                const msgIndex = currentMessages.findIndex(m => m.id === messageId);
+                if (msgIndex !== -1) {
+                    currentMessages.splice(msgIndex, 1);
+                    if (currentMessages[msgIndex] && currentMessages[msgIndex].sender === 'assistant') {
+                        currentMessages.splice(msgIndex, 1);
+                    }
+                }
+
+                // Remove assistant response from DOM if present
+                const assistantDiv = messageDiv.nextElementSibling;
+                if (assistantDiv && assistantDiv.classList.contains('assistant')) {
+                    assistantDiv.remove();
+                }
+
+                // Remove the edited message
+                messageDiv.remove();
+
+                // Resend edited message
+                const input = document.getElementById('messageInput');
+                input.value = newText;
+                autoResize(input);
+                await sendMessage();
+            };
+
+            // Cancel editing
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'message-action-btn';
+            cancelBtn.textContent = '❌ Cancel';
+            cancelBtn.onclick = () => {
+                textarea.remove();
+                textDiv.style.display = '';
+                actionsDiv.innerHTML = `
+                    <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                        ✏️ Edit
+                    </button>
+                `;
+            };
+
+            actionsDiv.appendChild(saveBtn);
+            actionsDiv.appendChild(cancelBtn);
+        }
+
+        // Send message
+        async function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) return;
+            
+            if (!isConnected) {
+                console.warn('Not connected to API, attempting to send anyway...');
+            }
+            
+            // Add user message
+            addMessage('user', message);
+            input.value = '';
+            autoResize(input);
+            
+            // Show typing indicator with stop button
+            isGenerating = true;
+            showTyping(true);
+            
+            // Create abort controller for this request
+            currentGenerationController = new AbortController();
+            
+            try {
+                const response = await fetch(`${API_BASE}/chat`, {
+                    signal: currentGenerationController.signal,
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        include_recent: 5,
+                        include_relevant: 3,
+                        remember_response: true,
+                        thread_id: conversationThreadId
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Simulate typing delay for better UX
+                setTimeout(async () => {
+                    isGenerating = false;
+                    showTyping(false);
+                    addMessage('assistant', data.response);
+                    updateMemoryCount();
+                    // Generate title after first assistant response
+                    if (currentMessages.length === 2) {
+                        console.log('Triggering title generation with', currentMessages.length, 'messages');
+                        await generateConversationTitle();
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                isGenerating = false;
+                showTyping(false);
+                if (error.name !== 'AbortError') {
+                    addMessage('assistant', '❌ Sorry, I encountered an error. Please check if the API server is running.');
+                }
+            } finally {
+                currentGenerationController = null;
+            }
+            
+            input.focus();
+        }
+
+        // Add message to chat
+        function addMessage(sender, content, messageId = null) {
+            const messagesContainer = document.getElementById('messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            // Generate unique ID for message if not provided
+            if (!messageId) {
+                messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            }
+            messageDiv.id = messageId;
+            
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const avatar = sender === 'user'
+                ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
+            
+            let actionsHTML = '';
+            if (sender === 'assistant') {
+                actionsHTML = `
+                    <div class="message-actions">
+                        <button class="message-action-btn feedback-btn up" onclick="sendFeedback('${messageId}', 'up')" title="Thumbs up">👍</button>
+                        <button class="message-action-btn feedback-btn down" onclick="sendFeedback('${messageId}', 'down')" title="Thumbs down">👎</button>
+                        <button class="message-action-btn" onclick="regenerateMessage('${messageId}')" title="Regenerate response">
+                            🔄 Regenerate
+                        </button>
+                        <button class="message-action-btn" onclick="copyMessage('${messageId}')" title="Copy to clipboard">
+                            📋 Copy
+                        </button>
+                    </div>
+                `;
+            } else if (sender === 'user') {
+                actionsHTML = `
+                    <div class="message-actions">
+                        <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                            ✏️ Edit
+                        </button>
+                    </div>
+                `;
+            }
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${avatar}</div>
+                <div class="message-content">
+                    <div class="message-text">${content}</div>
+                    <div class="message-time">${time}</div>
+                    ${actionsHTML}
+                </div>
+            `;
+            
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Track message for conversation history
+            currentMessages.push({
+                id: messageId,
+                sender: sender,
+                content: content,
+                timestamp: new Date().toISOString()
+            });
+            
+        }
+
+        async function sendFeedback(messageId, value) {
+            if (messageFeedback[messageId]) return;
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+            const upBtn = messageDiv.querySelector('.feedback-btn.up');
+            const downBtn = messageDiv.querySelector('.feedback-btn.down');
+            if (!upBtn || !downBtn) return;
+            upBtn.disabled = downBtn.disabled = true;
+            try {
+                await fetch(`${API_BASE}/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageId, value })
+                });
+                messageFeedback[messageId] = value;
+                if (value === 'up') {
+                    upBtn.classList.add('selected');
+                } else {
+                    downBtn.classList.add('selected');
+                }
+            } catch (err) {
+                console.error('Error sending feedback:', err);
+                upBtn.disabled = downBtn.disabled = false;
+            }
+        }
+
+        // Generate conversation title using AI
+        async function generateConversationTitle() {
+            try {
+                console.log('Generating title for messages:', currentMessages);
+                
+                const response = await fetch(`${API_BASE}/conversation/title`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messages: currentMessages.slice(0, 2) })
+                });
+                
+                console.log('Title generation response status:', response.status);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Generated title:', data.title);
+                    const title = data.title || 'New Chat';
+                    
+                    // Update current conversation or create new one
+                    const existingConv = conversations.find(c => c.id === currentConversationId);
+                    if (existingConv) {
+                        existingConv.title = title;
+                        existingConv.messages = [...currentMessages];
+                        existingConv.lastMessage = new Date().toISOString();
+                    } else {
+                        // Create new conversation entry
+                        const newConv = {
+                            id: currentConversationId,
+                            title: title,
+                            messages: [...currentMessages],
+                            lastMessage: new Date().toISOString(),
+                            created: new Date().toISOString()
+                        };
+                        conversations.unshift(newConv);
+                    }
+                    
+                    saveConversations();
+                    updateConversationsList();
+                } else {
+                    const errorText = await response.text();
+                    console.error('Title generation failed:', response.status, errorText);
+                    
+                    // Fallback: Use first user message
+                    const firstUserMsg = currentMessages.find(m => m.sender === 'user');
+                    const fallbackTitle = firstUserMsg ? 
+                        (firstUserMsg.content.length > 30 ? 
+                            firstUserMsg.content.substring(0, 30) + '...' : 
+                            firstUserMsg.content) : 
+                        'New Chat';
+                    
+                    console.log('Using fallback title:', fallbackTitle);
+                    
+                    // Still save the conversation with fallback title
+                    const existingConv = conversations.find(c => c.id === currentConversationId);
+                    if (existingConv) {
+                        existingConv.title = fallbackTitle;
+                        existingConv.messages = [...currentMessages];
+                        existingConv.lastMessage = new Date().toISOString();
+                    } else {
+                        const newConv = {
+                            id: currentConversationId,
+                            title: fallbackTitle,
+                            messages: [...currentMessages],
+                            lastMessage: new Date().toISOString(),
+                            created: new Date().toISOString()
+                        };
+                        conversations.unshift(newConv);
+                    }
+                    
+                    saveConversations();
+                    updateConversationsList();
+                }
+            } catch (error) {
+                console.error('Failed to generate conversation title:', error);
+                
+                // Fallback on network error
+                const firstUserMsg = currentMessages.find(m => m.sender === 'user');
+                const fallbackTitle = firstUserMsg ? 
+                    (firstUserMsg.content.length > 30 ? 
+                        firstUserMsg.content.substring(0, 30) + '...' : 
+                        firstUserMsg.content) : 
+                    'New Chat';
+                
+                console.log('Using error fallback title:', fallbackTitle);
+            }
+        }
+
+        // Show/hide typing indicator
+        function showTyping(show) {
+            const typing = document.getElementById('typing');
+            const messages = document.getElementById('messages');
+            
+            if (show) {
+                typing.style.display = 'flex';
+                // Update typing indicator with stop button if generating
+                if (isGenerating) {
+                    typing.innerHTML = `
+                        <div class="typing-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                        <button class="message-action-btn" onclick="stopGeneration()" style="opacity: 1; margin-left: 10px;">
+                            ⏹️ Stop
+                        </button>
+                    `;
+                } else {
+                    typing.innerHTML = `
+                        <div class="typing-dots">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    `;
+                }
+                messages.scrollTop = messages.scrollHeight;
+            } else {
+                typing.style.display = 'none';
+            }
+        }
+
+        // Voice recognition
+        function initVoiceRecognition() {
+            if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+                const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+                recognition = new SpeechRecognition();
+                recognition.continuous = false;
+                recognition.interimResults = false;
+                recognition.lang = 'en-US';
+                
+                recognition.onresult = function(event) {
+                    const transcript = event.results[0][0].transcript;
+                    document.getElementById('messageInput').value = transcript;
+                    autoResize(document.getElementById('messageInput'));
+                };
+                
+                recognition.onend = function() {
+                    stopVoiceRecording();
+                };
+            }
+        }
+
+        function toggleVoiceRecording() {
+            if (!recognition) {
+                alert('Voice recognition not supported in this browser');
+                return;
+            }
+            
+            if (isRecording) {
+                stopVoiceRecording();
+            } else {
+                startVoiceRecording();
+            }
+        }
+
+        function startVoiceRecording() {
+            isRecording = true;
+            document.getElementById('voiceBtn').classList.add('recording');
+            document.getElementById('voiceRecording').style.display = 'flex';
+            recognition.start();
+        }
+
+        function stopVoiceRecording() {
+            isRecording = false;
+            document.getElementById('voiceBtn').classList.remove('recording');
+            document.getElementById('voiceRecording').style.display = 'none';
+            if (recognition) {
+                recognition.stop();
+            }
+        }
+
+        // Conversation management
+        function startNewChat() {
+            // Save current conversation if it has messages
+            if (currentMessages.length > 0) {
+                const existingConv = conversations.find(c => c.id === currentConversationId);
+                if (existingConv) {
+                    existingConv.messages = [...currentMessages];
+                    existingConv.lastMessage = new Date().toISOString();
+                } else {
+                    const newConv = {
+                        id: currentConversationId,
+                        title: currentMessages[0]?.content?.substring(0, 30) + '...' || 'New Chat',
+                        messages: [...currentMessages],
+                        lastMessage: new Date().toISOString(),
+                        created: new Date().toISOString()
+                    };
+                    conversations.unshift(newConv);
+                }
+                saveConversations();
+            }
+            
+            // Start fresh conversation
+            currentConversationId = 'conv_' + Date.now();
+            currentMessages = [];
+            
+            const messages = document.getElementById('messages');
+            messages.innerHTML = `
+                <div class="message assistant">
+                    <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
+                    <div class="message-content">
+                        <div class="message-text">👋 Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
+                        <div class="message-time">Just now</div>
+                    </div>
+                </div>
+            `;
+            
+            updateConversationsList();
+        }
+
+        function selectConversation(element, conversationId) {
+            // Save current conversation before switching
+            if (currentMessages.length > 0) {
+                const existingConv = conversations.find(c => c.id === currentConversationId);
+                if (existingConv) {
+                    existingConv.messages = [...currentMessages];
+                    existingConv.lastMessage = new Date().toISOString();
+                } else if (currentConversationId !== conversationId) {
+                    const newConv = {
+                        id: currentConversationId,
+                        title: currentMessages[0]?.content?.substring(0, 30) + '...' || 'New Chat',
+                        messages: [...currentMessages],
+                        lastMessage: new Date().toISOString(),
+                        created: new Date().toISOString()
+                    };
+                    conversations.unshift(newConv);
+                }
+                saveConversations();
+            }
+            
+            // Switch to selected conversation
+            currentConversationId = conversationId;
+            const selectedConv = conversations.find(c => c.id === conversationId);
+            
+            if (selectedConv) {
+                currentMessages = [...selectedConv.messages];
+                loadConversationMessages(selectedConv.messages);
+            } else {
+                currentMessages = [];
+                document.getElementById('messages').innerHTML = `
+                    <div class="message assistant">
+                        <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
+                        <div class="message-content">
+                            <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                            <div class="message-time">Just now</div>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Update active state
+            document.querySelectorAll('.conversation-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            element.classList.add('active');
+        }
+
+        function loadConversationMessages(messages) {
+            const messagesContainer = document.getElementById('messages');
+            messagesContainer.innerHTML = '';
+            
+            messages.forEach(msg => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${msg.sender}`;
+
+                const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const avatar = msg.sender === 'user'
+                    ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                    : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
+
+                messageDiv.innerHTML = `
+                    <div class="message-avatar">${avatar}</div>
+                    <div class="message-content">
+                        <div class="message-text">${msg.content}</div>
+                        <div class="message-time">${time}</div>
+                    </div>
+                `;
+                
+                messagesContainer.appendChild(messageDiv);
+            });
+            
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Search memories
+        async function searchMemories() {
+            if (!isConnected) return;
+            
+            const query = prompt('What would you like to search for?');
+            if (!query) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/memories/search`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: query, k: 5 })
+                });
+                
+                const data = await response.json();
+                let results = `🔍 Search results for "${query}":\n\n`;
+                
+                if (data.memories.length === 0) {
+                    results += 'No memories found.';
+                } else {
+                    data.memories.forEach((memory, index) => {
+                        results += `${index + 1}. ${memory.content} (${(memory.relevance_score * 100).toFixed(1)}% match)\n\n`;
+                    });
+                }
+                
+                addMessage('assistant', results);
+                
+            } catch (error) {
+                addMessage('assistant', '❌ Error searching memories.');
+            }
+        }
+
+        // Show memory stats
+        async function showMemoryStats() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/memories/stats`);
+                const data = await response.json();
+                
+                const stats = `📊 Memory Statistics:
+
+Total memories: ${data.total_memories}
+Average length: ${data.average_content_length.toFixed(1)} characters
+Total content: ${data.total_content_length} characters
+
+Memory types:
+${Object.entries(data.memory_types).map(([type, count]) => `• ${type}: ${count}`).join('\n')}`;
+                
+                addMessage('assistant', stats);
+                
+            } catch (error) {
+                addMessage('assistant', '❌ Error fetching memory stats.');
+            }
+        }
+
+        // Export memories
+        async function exportMemories() {
+            if (!isConnected) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/memories/export`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ format: 'json' })
+                });
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `memories_export_${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    
+                    addMessage('assistant', '💾 Memories exported successfully!');
+                } else {
+                    addMessage('assistant', '❌ Error exporting memories.');
+                }
+                
+            } catch (error) {
+                addMessage('assistant', '❌ Error exporting memories.');
+            }
+        }
+
+        // Initialize on load
+        window.addEventListener('load', () => {
+            loadTheme();
+            init();
+        });
+        
+        // Check connection periodically
+        setInterval(checkConnection, 30000);
+    </script>
+</body>
+</html>

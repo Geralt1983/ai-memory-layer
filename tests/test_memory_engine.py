@@ -1,6 +1,7 @@
 import pytest
 import json
 import os
+import threading
 from unittest.mock import Mock, patch
 from core.memory_engine import MemoryEngine, Memory
 from storage.faiss_store import FaissVectorStore
@@ -201,3 +202,46 @@ class TestMemoryEngine:
         contents = [m.content for m in engine2.memories]
         assert "Persistent memory 1" in contents
         assert "Persistent memory 2" in contents
+
+    def test_concurrent_save_memories(self, temp_dir):
+        """Simulate concurrent saves and ensure data integrity"""
+        persist_path = os.path.join(temp_dir, "memories.json")
+
+        engines = []
+        contents = []
+        for i in range(5):
+            engine = MemoryEngine()
+            content = f"Concurrent memory {i}"
+            engine.add_memory(content)
+            engine.persist_path = persist_path
+            engines.append(engine)
+            contents.append(content)
+
+        threads = [threading.Thread(target=e.save_memories) for e in engines]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        with open(persist_path, "r") as f:
+            data = json.load(f)
+
+        assert len(data) == 1
+        assert data[0]["content"] in contents
+        assert not os.path.exists(persist_path + ".tmp")
+
+    def test_identity_corrections_search(self, memory_engine):
+        """Identity corrections should be returned regardless of relevance."""
+        correction = memory_engine.add_identity_correction("User's name is Alice")
+        other_memory = memory_engine.add_memory("Some unrelated memory about Python")
+
+        # Simulate vector store search returning only the unrelated memory
+        with patch.object(memory_engine.vector_store, "search", return_value=[other_memory]):
+            results = memory_engine.search_memories("irrelevant query", k=1)
+
+        # Ensure the correction is stored and retrievable
+        corrections = memory_engine.get_identity_corrections()
+        assert correction in corrections
+
+        # Identity correction should be included even though it wasn't in search results
+        assert correction in results
