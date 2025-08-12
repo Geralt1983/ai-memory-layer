@@ -110,10 +110,31 @@ class FaissVectorStore(VectorStore):
             idx = int(memory_id)
             if idx in self.memories:
                 del self.memories[idx]
+                # Rebuild the FAISS index to remove the deleted embedding
+                self._rebuild_index()
                 return True
         except ValueError:
             pass
         return False
+
+    def _rebuild_index(self) -> None:
+        """Rebuild the FAISS index from current memories."""
+        # Reset the index and reinsert all remaining embeddings
+        self.index.reset()
+
+        new_memories: Dict[int, Memory] = {}
+        for new_idx, (_, memory) in enumerate(sorted(self.memories.items())):
+            embedding = memory.embedding.astype("float32").reshape(1, -1)
+            self.index.add(embedding)
+            new_memories[new_idx] = memory
+
+        # Update memory IDs and current_id
+        self.memories = new_memories
+        self.current_id = len(self.memories)
+
+        # Persist the rebuilt index if persistence is enabled
+        if self.index_path:
+            self.save_index(self.index_path)
 
     def save_index(self, path: str) -> None:
         os.makedirs(os.path.dirname(path), exist_ok=True)

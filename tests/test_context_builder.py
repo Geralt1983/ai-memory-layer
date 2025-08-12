@@ -203,6 +203,29 @@ class TestContextBuilder:
         assert "He likes coffee" in context
         assert "Random chat" not in context
 
+    def test_profile_memories_included(self):
+        """Profile memories should be included when a profile query is provided"""
+        engine = MemoryEngine()
+        mem = engine.add_memory("Jeremy likes skiing")
+        mem.relevance_score = 0.9
+
+        builder = ContextBuilder(engine, profile_query="Jeremy")
+        context = builder.build_context(include_recent=0, include_relevant=0)
+
+        assert "## Profile Information:" in context
+        assert "Jeremy likes skiing" in context
+
+    def test_profile_memories_excluded_without_query(self):
+        """Profile memories are skipped when no profile query is supplied"""
+        engine = MemoryEngine()
+        mem = engine.add_memory("Jeremy likes skiing")
+        mem.relevance_score = 0.9
+
+        builder = ContextBuilder(engine)
+        context = builder.build_context(include_recent=0, include_relevant=0)
+
+        assert context == ""
+
     def test_build_context_calls_identity_method(self):
         """Ensure build_context fetches identity memories via dedicated method"""
         mock_engine = Mock(spec=MemoryEngine)
