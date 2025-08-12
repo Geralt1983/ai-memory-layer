@@ -74,6 +74,16 @@ Currently deployed on AWS EC2:
 | `/memories/stats` | GET | Get memory statistics |
 | `/conversations/generate-title` | POST | Generate conversation title |
 
+## Authentication
+
+Set `API_AUTH_TOKEN` in your environment to require token-based access. When set, include the header:
+
+```
+Authorization: Bearer <API_AUTH_TOKEN>
+```
+
+The `/health` endpoint remains publicly accessible.
+
 ## Configuration
 
 Environment variables (`.env`):
@@ -82,6 +92,8 @@ OPENAI_API_KEY=your_key_here
 VECTOR_STORE_TYPE=faiss  # or 'chroma'
 PERSIST_DIRECTORY=./data
 MEMORY_PERSIST_PATH=./data/memories.json
+API_AUTH_TOKEN=your_api_token       # Optional token to secure API endpoints
+ALLOWED_ORIGINS=http://localhost:3000  # Comma-separated list of allowed CORS origins
 LOG_LEVEL=INFO
 ```
 

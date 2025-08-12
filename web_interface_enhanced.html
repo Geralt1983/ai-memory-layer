@@ -86,7 +86,11 @@
             cursor: pointer;
             font-size: 14px;
             color: var(--text-secondary);
-            transition: background 0.2s;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .conversation-item:hover {
@@ -97,6 +101,40 @@
         .conversation-item.active {
             background: var(--accent-primary);
             color: white;
+        }
+
+        .conversation-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: none;
+            gap: 4px;
+        }
+
+        .conversation-item:hover .conversation-actions {
+            display: flex;
+        }
+
+        .conversation-action-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .conversation-action-btn:hover {
+            background: #2a2b32;
+            color: var(--text-primary);
+        }
+
+        .conversation-item.active .conversation-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .sidebar-footer {
@@ -618,8 +656,14 @@
                 });
                 
                 convDiv.innerHTML = `
-                    <div>${conv.title}</div>
-                    <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    <div class="conversation-info">
+                        <div>${conv.title}</div>
+                        <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    </div>
+                    <div class="conversation-actions">
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); renameConversation('${conv.id}')">✏️</button>
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">🗑️</button>
+                    </div>
                 `;
                 
                 container.appendChild(convDiv);
@@ -631,8 +675,10 @@
                 currentDiv.className = 'conversation-item active';
                 currentDiv.onclick = () => selectConversation(currentDiv, 'current');
                 currentDiv.innerHTML = `
-                    <div>Current Chat</div>
-                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                    <div class="conversation-info">
+                        <div>Current Chat</div>
+                        <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                    </div>
                 `;
                 container.appendChild(currentDiv);
             }
@@ -767,27 +813,33 @@
         async function sendMessage() {
             const input = document.getElementById('messageInput');
             const message = input.value.trim();
-            
+
             if (!message) return;
-            
+
             if (!isConnected) {
                 console.warn('Not connected to API, attempting to send anyway...');
             }
-            
+
             // Add user message
             addMessage('user', message);
             input.value = '';
             autoResize(input);
-            
+
             // Show typing indicator with stop button
             isGenerating = true;
             showTyping(true);
-            
+
             // Create abort controller for this request
             currentGenerationController = new AbortController();
-            
+
+            // Placeholder assistant message (not added to history yet)
+            const msgId = addMessage('assistant', '', null, true);
+            const messageDiv = document.getElementById(msgId);
+            const textElem = messageDiv.querySelector('.message-text');
+            let fullResponse = '';
+
             try {
-                const response = await fetch(`${API_BASE}/chat`, {
+                const response = await fetch(`${API_BASE}/chat/stream`, {
                     signal: currentGenerationController.signal,
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -799,37 +851,59 @@
                         thread_id: conversationThreadId
                     })
                 });
-                
-                const data = await response.json();
-                
-                // Simulate typing delay for better UX
-                setTimeout(() => {
-                    isGenerating = false;
-                    showTyping(false);
-                    addMessage('assistant', data.response);
-                    updateMemoryCount();
-                    // Trigger title generation if this is one of the first few messages
-                    if (currentMessages.length <= 6) {
-                        console.log('Triggering title generation with', currentMessages.length, 'messages');
-                        generateConversationTitle();
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop();
+                    for (const part of parts) {
+                        const line = part.trim();
+                        if (line.startsWith('data: ')) {
+                            const token = line.slice(6);
+                            if (token === '[DONE]') {
+                                break;
+                            }
+                            textElem.textContent += token;
+                            fullResponse += token;
+                        }
                     }
-                }, 1000);
-                
+                }
+
+                // Add to history after completion
+                currentMessages.push({
+                    sender: 'assistant',
+                    content: fullResponse,
+                    timestamp: new Date().toISOString()
+                });
+
+                updateMemoryCount();
+
+                if (currentMessages.length >= 3 && currentMessages.length <= 6) {
+                    console.log('Triggering title generation with', currentMessages.length, 'messages');
+                    generateConversationTitle();
+                }
+
             } catch (error) {
-                isGenerating = false;
-                showTyping(false);
                 if (error.name !== 'AbortError') {
-                    addMessage('assistant', '❌ Sorry, I encountered an error. Please check if the API server is running.');
+                    textElem.textContent = '❌ Sorry, I encountered an error. Please check if the API server is running.';
                 }
             } finally {
+                isGenerating = false;
+                showTyping(false);
                 currentGenerationController = null;
             }
-            
+
             input.focus();
         }
 
         // Add message to chat
-        function addMessage(sender, content, messageId = null) {
+        function addMessage(sender, content, messageId = null, skipHistory = false) {
             const messagesContainer = document.getElementById('messages');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
@@ -868,19 +942,21 @@
             
             messagesContainer.appendChild(messageDiv);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
-            
-            // Track message for conversation history
-            currentMessages.push({
-                sender: sender,
-                content: content,
-                timestamp: new Date().toISOString()
-            });
-            
-            // Generate title after we have enough context (2+ exchanges)
-            if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
-                console.log('Triggering title generation with', currentMessages.length, 'messages');
-                generateConversationTitle();
+
+            if (!skipHistory) {
+                currentMessages.push({
+                    sender: sender,
+                    content: content,
+                    timestamp: new Date().toISOString()
+                });
+
+                if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
+                    console.log('Triggering title generation with', currentMessages.length, 'messages');
+                    generateConversationTitle();
+                }
             }
+
+            return messageId;
         }
 
         // Generate conversation title using AI
@@ -1165,6 +1241,50 @@
             });
             
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function renameConversation(id) {
+            const conv = conversations.find(c => c.id === id);
+            if (!conv) return;
+            const newTitle = prompt('Rename conversation:', conv.title);
+            if (newTitle && newTitle.trim()) {
+                conv.title = newTitle.trim();
+                saveConversations();
+                updateConversationsList();
+            }
+        }
+
+        function deleteConversation(id) {
+            const index = conversations.findIndex(c => c.id === id);
+            if (index === -1) return;
+            if (!confirm('Delete this conversation?')) return;
+
+            const wasActive = currentConversationId === id;
+            conversations.splice(index, 1);
+            saveConversations();
+
+            if (wasActive) {
+                if (conversations.length > 0) {
+                    const nextConv = conversations[0];
+                    currentConversationId = nextConv.id;
+                    currentMessages = [...nextConv.messages];
+                    loadConversationMessages(nextConv.messages);
+                } else {
+                    currentConversationId = 'current';
+                    currentMessages = [];
+                    document.getElementById('messages').innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-avatar">🧠</div>
+                            <div class="message-content">
+                                <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            updateConversationsList();
         }
 
         // Search memories

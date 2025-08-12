@@ -15,58 +15,60 @@ except ImportError:
     CHROMADB_AVAILABLE = False
 
 
-class MockChromaClient:
-    def get_or_create_collection(self, name):
-        return MockCollection()
+if not CHROMADB_AVAILABLE:
+    class MockChromaClient:
+        def get_or_create_collection(self, name):
+            return MockCollection()
 
-    def delete_collection(self, name):
-        pass
-
-
-class MockCollection:
-    def add(self, ids, documents, metadatas=None, embeddings=None):
-        pass
-
-    def query(self, query_embeddings=None, query_texts=None, n_results=10):
-        return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
-
-    def delete(self):
-        pass
-
-    def count(self):
-        return 0
+        def delete_collection(self, name):
+            pass
 
 
-class MockSettings:
-    def __init__(self, **kwargs):
-        pass
+    class MockCollection:
+        def add(self, ids, documents, metadatas=None, embeddings=None):
+            pass
+
+        def query(self, query_embeddings=None, query_texts=None, n_results=10):
+            return {"ids": [[]], "documents": [[]], "metadatas": [[]], "distances": [[]]}
+
+        def delete(self):
+            pass
+
+        def count(self):
+            return 0
 
 
-class MockArray:
-    def __init__(self, data=None):
-        self.data = data if data is not None else []
-
-    def tolist(self):
-        return self.data if isinstance(self.data, list) else [self.data]
+    class MockSettings:
+        def __init__(self, **kwargs):
+            pass
 
 
-class MockNumpy:
-    ndarray = MockArray
+    class MockArray:
+        def __init__(self, data=None):
+            self.data = data if data is not None else []
 
-    @staticmethod
-    def array(data):
-        return MockArray(data)
+        def tolist(self):
+            return self.data if isinstance(self.data, list) else [self.data]
 
 
-chromadb = type(
-    "chromadb",
-    (),
-    {
-        "Client": MockChromaClient,
-        "config": type("config", (), {"Settings": MockSettings}),
-    },
-)
-np = MockNumpy()
+    class MockNumpy:
+        ndarray = MockArray
+
+        @staticmethod
+        def array(data):
+            return MockArray(data)
+
+
+    chromadb = type(
+        "chromadb",
+        (),
+        {
+            "Client": MockChromaClient,
+            "PersistentClient": MockChromaClient,
+            "config": type("config", (), {"Settings": MockSettings}),
+        },
+    )
+    np = MockNumpy()
 
 from typing import List, Dict, Any, Optional
 import uuid
@@ -78,6 +80,7 @@ class ChromaVectorStore(VectorStore):
         self, collection_name: str = "memories", persist_directory: Optional[str] = None
     ):
         self.collection_name = collection_name
+        self.persist_directory = persist_directory
 
         if persist_directory:
             self.client = chromadb.PersistentClient(path=persist_directory)
@@ -95,10 +98,13 @@ class ChromaVectorStore(VectorStore):
 
         memory_id = str(uuid.uuid4())
 
+        metadata = memory.metadata if memory.metadata else None
+        metadatas = [metadata] if metadata is not None else None
+
         self.collection.add(
             embeddings=[memory.embedding.tolist()],
             documents=[memory.content],
-            metadatas=[memory.metadata],
+            metadatas=metadatas,
             ids=[memory_id],
         )
 
@@ -131,10 +137,12 @@ class ChromaVectorStore(VectorStore):
         return memories
 
     def delete_memory(self, memory_id: str) -> bool:
+        if memory_id not in self.id_to_memory:
+            return False
+
         try:
             self.collection.delete(ids=[memory_id])
-            if memory_id in self.id_to_memory:
-                del self.id_to_memory[memory_id]
+            del self.id_to_memory[memory_id]
             return True
         except Exception:
             return False
