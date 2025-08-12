@@ -16,6 +16,7 @@ import time
 from core.memory_engine import MemoryEngine
 from core.memory_manager import MemoryManager, create_default_memory_manager
 from core.logging_config import get_logger, log_api_request
+from core.personality import PersonalityProfile
 from storage.faiss_store import FaissVectorStore
 from storage.chroma_store import ChromaVectorStore
 from integrations.embeddings import OpenAIEmbeddings
@@ -422,6 +423,12 @@ async def chat_with_memory(
             system_prompt=chat_data.system_prompt,
         )
 
+        personality = (
+            PersonalityProfile(**chat_data.personality.dict())
+            if chat_data.personality
+            else None
+        )
+
         # Execute chat through the compatibility wrapper
         response = openai_integration.chat_with_memory(
             message=chat_data.message,
@@ -429,6 +436,7 @@ async def chat_with_memory(
             include_recent=chat_data.include_recent,
             include_relevant=chat_data.include_relevant,
             remember_response=chat_data.remember_response,
+            personality=personality,
         )
 
         processing_time = time.time() - start_time
@@ -460,11 +468,17 @@ async def chat_with_memory_stream(
 
     def event_generator():
         try:
+            personality = (
+                PersonalityProfile(**chat_data.personality.dict())
+                if chat_data.personality
+                else None
+            )
             for token in direct_chat.chat_stream(
                 message=chat_data.message,
                 thread_id=chat_data.thread_id,
                 system_prompt=chat_data.system_prompt,
                 remember_response=chat_data.remember_response,
+                personality=personality,
             ):
                 yield f"data: {token}\n\n"
             yield "data: [DONE]\n\n"
