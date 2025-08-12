@@ -206,36 +206,32 @@
             display: flex;
             gap: 16px;
             max-width: 800px;
-            margin-left: auto;
+            align-items: flex-start;
+        }
+
+        .message.assistant {
             margin-right: auto;
         }
 
+        .message.user {
+            flex-direction: row-reverse;
+            margin-left: auto;
+        }
+
         .message-avatar {
-            width: 30px;
-            height: 30px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
             flex-shrink: 0;
-        }
-
-        .message.user .message-avatar {
-            background: var(--user-bg);
-            color: white;
-        }
-
-        .message.assistant .message-avatar {
-            background: var(--accent-primary);
-            color: white;
         }
 
         .message-content {
             flex: 1;
             min-width: 0;
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border-primary);
         }
 
         .message.user .message-content {
@@ -249,8 +245,20 @@
         .message-text {
             line-height: 1.6;
             font-size: 16px;
-            white-space: pre-wrap;
             word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .message-text pre {
+            background: var(--bg-secondary);
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+        }
+
+        .message-text code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
         }
 
         .message-time {
@@ -498,6 +506,10 @@
             50% { height: 10px; }
         }
     </style>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/highlight.min.js"></script>
+    <script src="markdown_utils.js"></script>
 </head>
 <body>
     <!-- Sidebar -->
@@ -601,6 +613,8 @@
         let recognition = null;
         let isGenerating = false;
         let currentGenerationController = null;
+        const USER_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxMCIgcj0iNiIgZmlsbD0iIzMzMyIvPjxwYXRoIGQ9Ik00IDMwYzAtNi42IDUuNC0xMiAxMi0xMnMxMiA1LjQgMTIgMTIiIGZpbGw9IiMzMzMiLz48L3N2Zz4=';
+        const ASSISTANT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAzMiAzMiI+PHJlY3QgeD0iNiIgeT0iMTAiIHdpZHRoPSIyMCIgaGVpZ2h0PSIxNCIgcng9IjMiIGZpbGw9IiMxMGEzN2YiLz48Y2lyY2xlIGN4PSIxMiIgY3k9IjE3IiByPSIyIiBmaWxsPSIjZmZmIi8+PGNpcmNsZSBjeD0iMjAiIGN5PSIxNyIgcj0iMiIgZmlsbD0iI2ZmZiIvPjxyZWN0IHg9IjE0IiB5PSIyNCIgd2lkdGg9IjQiIGhlaWdodD0iMiIgZmlsbD0iI2ZmZiIvPjxyZWN0IHg9IjEzIiB5PSI1IiB3aWR0aD0iNiIgaGVpZ2h0PSI0IiBmaWxsPSIjMTBhMzdmIi8+PHJlY3QgeD0iMTUiIHk9IjIiIHdpZHRoPSIyIiBoZWlnaHQ9IjMiIGZpbGw9IiMxMGEzN2YiLz48L3N2Zz4=';
         // Get or create persistent conversation thread ID
         let conversationThreadId = localStorage.getItem('conversationThreadId');
         if (!conversationThreadId) {
@@ -915,8 +929,7 @@
             messageDiv.id = messageId;
             
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const avatar = sender === 'user' ? '👤' : '🧠';
-            
+
             let actionsHTML = '';
             if (sender === 'assistant') {
                 actionsHTML = `
@@ -930,17 +943,22 @@
                     </div>
                 `;
             }
-            
+
+            const avatar = sender === 'user' ? USER_AVATAR : ASSISTANT_AVATAR;
+
             messageDiv.innerHTML = `
-                <div class="message-avatar">${avatar}</div>
+                <img class="message-avatar" src="${avatar}" alt="${sender}">
                 <div class="message-content">
-                    <div class="message-text">${content}</div>
+                    <div class="message-text">${renderMarkdown(content)}</div>
                     <div class="message-time">${time}</div>
                     ${actionsHTML}
                 </div>
             `;
-            
+
             messagesContainer.appendChild(messageDiv);
+            if (window.hljs) {
+                messageDiv.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block));
+            }
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
             if (!skipHistory) {
