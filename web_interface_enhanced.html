@@ -6,7 +6,7 @@
     <title>AI Memory Layer - Enhanced Chat</title>
     <style>
         :root {
-            /* Light theme */
+            /* Light theme - ChatGPT colors */
             --bg-primary: #ffffff;
             --bg-secondary: #f7f7f8;
             --bg-tertiary: #ececec;
@@ -21,7 +21,7 @@
         }
 
         [data-theme="dark"] {
-            /* Dark theme */
+            /* Dark theme - ChatGPT colors */
             --bg-primary: #343541;
             --bg-secondary: #40414f;
             --bg-tertiary: #202123;
@@ -113,6 +113,9 @@
             color: var(--text-secondary);
             transition: all 0.2s;
             border: 1px solid transparent;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
         .conversation-item:hover {
@@ -123,6 +126,40 @@
         .conversation-item.active {
             background: var(--accent-primary);
             color: white;
+        }
+
+        .conversation-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .conversation-actions {
+            display: none;
+            gap: 4px;
+        }
+
+        .conversation-item:hover .conversation-actions {
+            display: flex;
+        }
+
+        .conversation-action-btn {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            padding: 2px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .conversation-action-btn:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .conversation-item.active .conversation-action-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .sidebar-footer {
@@ -221,6 +258,12 @@
             flex-shrink: 0;
         }
 
+        .message-avatar img {
+            width: 20px;
+            height: 20px;
+            filter: invert(1);
+        }
+
         .message.user .message-avatar {
             background: var(--user-bg);
             color: white;
@@ -281,6 +324,12 @@
         .message-action-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        .feedback-btn.selected {
+            background: var(--accent-primary);
+            color: white;
+            border-color: var(--accent-primary);
         }
 
         .typing-indicator {
@@ -357,6 +406,15 @@
 
         .message-input::placeholder {
             color: var(--text-secondary);
+        }
+
+        .warning-footer {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-secondary);
+            padding: 8px;
+            border-top: 1px solid var(--border-primary);
+            background: var(--bg-primary);
         }
 
         .input-controls {
@@ -499,13 +557,15 @@
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <button class="new-chat-btn" onclick="startNewChat()">+ New chat</button>
-            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">ð</button>
+            <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
         </div>
         
         <div class="conversations" id="conversations">
             <div class="conversation-item active" onclick="selectConversation(this)">
-                <div>Current Chat</div>
-                <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                <div class="conversation-info">
+                    <div>Current Chat</div>
+                    <div style="font-size: 12px; opacity: 0.7;">Just now</div>
+                </div>
             </div>
         </div>
         
@@ -528,26 +588,26 @@
         <div class="chat-header">
             <div class="chat-title">
                 AI Memory Layer <small id="version-display" style="font-size: 14px; opacity: 0.7;">v1.2.0</small>
-                <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">â» Reload</button>
-                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">ð New Chat</button>
+                <button onclick="location.reload(true)" style="margin-left: 10px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Force reload to clear cache">↻ Reload</button>
+                <button onclick="startNewConversation()" style="margin-left: 5px; padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border-primary); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: 12px;" title="Start a new conversation with fresh context">🆕 New Chat</button>
             </div>
             <div class="header-controls">
-                <button class="control-btn" onclick="searchMemories()">ð Search</button>
-                <button class="control-btn" onclick="showMemoryStats()">ð Stats</button>
-                <button class="control-btn" onclick="exportMemories()">ð¾ Export</button>
+                <button class="control-btn" onclick="searchMemories()">🔍 Search</button>
+                <button class="control-btn" onclick="showMemoryStats()">📊 Stats</button>
+                <button class="control-btn" onclick="exportMemories()">💾 Export</button>
             </div>
         </div>
         
         <div class="chat-messages" id="messages">
             <div class="message assistant">
-                <div class="message-avatar">ð§ </div>
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                 <div class="message-content">
-                    <div class="message-text">ð Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
+                    <div class="message-text">👋 Hello! I'm your AI assistant with persistent memory. I can remember our conversations and learn from them to provide better help over time.</div>
                     <div class="message-time">Just now</div>
                 </div>
             </div>
             <div class="message assistant">
-                <div class="message-avatar">ð§ </div>
+                <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                 <div class="message-content">
                     <div class="message-text">Try telling me about your preferences, projects, or ask me anything. I'll remember it all for our future conversations!</div>
                     <div class="message-time">Just now</div>
@@ -556,7 +616,7 @@
         </div>
         
         <div class="typing-indicator" id="typing">
-            <div class="message-avatar" style="background: var(--accent-primary); color: white;">ð§ </div>
+            <div class="message-avatar" style="background: var(--accent-primary);"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
             <div class="typing-dots">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
@@ -567,21 +627,22 @@
         <div class="input-area">
             <div class="input-container">
                 <div class="input-wrapper">
-                    <textarea 
-                        class="message-input" 
-                        id="messageInput" 
-                        placeholder="Message AI Memory Layer..."
+                    <textarea
+                        class="message-input"
+                        id="messageInput"
+                        placeholder="Message ChatGPT…"
                         rows="1"
                         onkeydown="handleKeyDown(event)"
                         oninput="autoResize(this)"
                     ></textarea>
                     <div class="input-controls">
-                        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice input">ð¤</button>
-                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">â¤</button>
+                        <button class="voice-btn" id="voiceBtn" onclick="toggleVoiceRecording()" title="Voice input">🎤</button>
+                        <button class="send-btn" id="sendBtn" onclick="sendMessage()" title="Send message">➤</button>
                     </div>
                 </div>
             </div>
         </div>
+        <div class="warning-footer">ChatGPT can make mistakes. Consider checking important information.</div>
     </div>
 
     <!-- Voice recording indicator -->
@@ -606,6 +667,7 @@
         let recognition = null;
         let isGenerating = false;
         let currentGenerationController = null;
+        const messageFeedback = {};
         // Get or create persistent conversation thread ID
         let conversationThreadId = localStorage.getItem('conversationThreadId');
         if (!conversationThreadId) {
@@ -663,17 +725,23 @@
                 const convDiv = document.createElement('div');
                 convDiv.className = `conversation-item ${conv.id === currentConversationId ? 'active' : ''}`;
                 convDiv.onclick = () => selectConversation(convDiv, conv.id);
-                
+
                 const timeStr = new Date(conv.lastMessage).toLocaleDateString([], {
                     month: 'short',
                     day: 'numeric'
                 });
-                
+
                 convDiv.innerHTML = `
-                    <div>${conv.title}</div>
-                    <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    <div class="conversation-info">
+                        <div>${conv.title}</div>
+                        <div style="font-size: 12px; opacity: 0.7;">${timeStr}</div>
+                    </div>
+                    <div class="conversation-actions">
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); renameConversation('${conv.id}')">✏️</button>
+                        <button class="conversation-action-btn" onclick="event.stopPropagation(); deleteConversation('${conv.id}')">🗑️</button>
+                    </div>
                 `;
-                
+
                 container.appendChild(convDiv);
             });
             
@@ -690,6 +758,50 @@
             }
         }
 
+        function renameConversation(id) {
+            const conv = conversations.find(c => c.id === id);
+            if (!conv) return;
+            const newTitle = prompt('Rename conversation:', conv.title);
+            if (newTitle && newTitle.trim()) {
+                conv.title = newTitle.trim();
+                saveConversations();
+                updateConversationsList();
+            }
+        }
+
+        function deleteConversation(id) {
+            const index = conversations.findIndex(c => c.id === id);
+            if (index === -1) return;
+            if (!confirm('Delete this conversation?')) return;
+
+            const wasActive = currentConversationId === id;
+            conversations.splice(index, 1);
+            saveConversations();
+
+            if (wasActive) {
+                if (conversations.length > 0) {
+                    const nextConv = conversations[0];
+                    currentConversationId = nextConv.id;
+                    currentMessages = [...nextConv.messages];
+                    loadConversationMessages(nextConv.messages);
+                } else {
+                    currentConversationId = 'current';
+                    currentMessages = [];
+                    document.getElementById('messages').innerHTML = `
+                        <div class="message assistant">
+                            <div class="message-avatar">🧠</div>
+                            <div class="message-content">
+                                <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                                <div class="message-time">Just now</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+
+            updateConversationsList();
+        }
+
         // Theme management
         function toggleTheme() {
             const body = document.body;
@@ -697,11 +809,11 @@
             
             if (body.getAttribute('data-theme') === 'dark') {
                 body.setAttribute('data-theme', 'light');
-                themeBtn.textContent = 'ð';
+                themeBtn.textContent = '🌙';
                 localStorage.setItem('theme', 'light');
             } else {
                 body.setAttribute('data-theme', 'dark');
-                themeBtn.textContent = 'âï¸';
+                themeBtn.textContent = '☀️';
                 localStorage.setItem('theme', 'dark');
             }
         }
@@ -710,7 +822,7 @@
         function loadTheme() {
             const savedTheme = localStorage.getItem('theme') || 'light';
             document.body.setAttribute('data-theme', savedTheme);
-            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? 'âï¸' : 'ð';
+            document.querySelector('.theme-toggle').textContent = savedTheme === 'dark' ? '☀️' : '🌙';
         }
 
         // Auto-resize textarea
@@ -790,7 +902,7 @@
                 // Show feedback
                 const copyBtn = messageDiv.querySelector('button[onclick*="copyMessage"]');
                 const originalText = copyBtn.innerHTML;
-                copyBtn.innerHTML = 'â Copied!';
+                copyBtn.innerHTML = '✅ Copied!';
                 setTimeout(() => {
                     copyBtn.innerHTML = originalText;
                 }, 2000);
@@ -838,6 +950,78 @@
             await sendMessage();
         }
 
+        // Edit user message
+        function editMessage(messageId) {
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+
+            const contentDiv = messageDiv.querySelector('.message-content');
+            const textDiv = contentDiv.querySelector('.message-text');
+            const originalText = textDiv.textContent;
+
+            // Create textarea for editing
+            const textarea = document.createElement('textarea');
+            textarea.className = 'edit-textarea';
+            textarea.value = originalText;
+            autoResize(textarea);
+
+            contentDiv.insertBefore(textarea, textDiv);
+            textDiv.style.display = 'none';
+
+            const actionsDiv = contentDiv.querySelector('.message-actions');
+            actionsDiv.innerHTML = '';
+
+            // Save edits
+            const saveBtn = document.createElement('button');
+            saveBtn.className = 'message-action-btn';
+            saveBtn.textContent = '💾 Save';
+            saveBtn.onclick = async () => {
+                const newText = textarea.value.trim();
+                if (!newText) return;
+
+                // Remove this user/assistant pair from history
+                const msgIndex = currentMessages.findIndex(m => m.id === messageId);
+                if (msgIndex !== -1) {
+                    currentMessages.splice(msgIndex, 1);
+                    if (currentMessages[msgIndex] && currentMessages[msgIndex].sender === 'assistant') {
+                        currentMessages.splice(msgIndex, 1);
+                    }
+                }
+
+                // Remove assistant response from DOM if present
+                const assistantDiv = messageDiv.nextElementSibling;
+                if (assistantDiv && assistantDiv.classList.contains('assistant')) {
+                    assistantDiv.remove();
+                }
+
+                // Remove the edited message
+                messageDiv.remove();
+
+                // Resend edited message
+                const input = document.getElementById('messageInput');
+                input.value = newText;
+                autoResize(input);
+                await sendMessage();
+            };
+
+            // Cancel editing
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'message-action-btn';
+            cancelBtn.textContent = '❌ Cancel';
+            cancelBtn.onclick = () => {
+                textarea.remove();
+                textDiv.style.display = '';
+                actionsDiv.innerHTML = `
+                    <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                        ✏️ Edit
+                    </button>
+                `;
+            };
+
+            actionsDiv.appendChild(saveBtn);
+            actionsDiv.appendChild(cancelBtn);
+        }
+
         // Send message
         async function sendMessage() {
             const input = document.getElementById('messageInput');
@@ -878,15 +1062,15 @@
                 const data = await response.json();
                 
                 // Simulate typing delay for better UX
-                setTimeout(() => {
+                setTimeout(async () => {
                     isGenerating = false;
                     showTyping(false);
                     addMessage('assistant', data.response);
                     updateMemoryCount();
-                    // Trigger title generation if this is one of the first few messages
-                    if (currentMessages.length <= 6) {
+                    // Generate title after first assistant response
+                    if (currentMessages.length === 2) {
                         console.log('Triggering title generation with', currentMessages.length, 'messages');
-                        generateConversationTitle();
+                        await generateConversationTitle();
                     }
                 }, 1000);
                 
@@ -894,7 +1078,7 @@
                 isGenerating = false;
                 showTyping(false);
                 if (error.name !== 'AbortError') {
-                    addMessage('assistant', 'â Sorry, I encountered an error. Please check if the API server is running.');
+                    addMessage('assistant', '❌ Sorry, I encountered an error. Please check if the API server is running.');
                 }
             } finally {
                 currentGenerationController = null;
@@ -916,17 +1100,29 @@
             messageDiv.id = messageId;
             
             const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const avatar = sender === 'user' ? 'ð¤' : 'ð§ ';
+            const avatar = sender === 'user'
+                ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
             
             let actionsHTML = '';
             if (sender === 'assistant') {
                 actionsHTML = `
                     <div class="message-actions">
+                        <button class="message-action-btn feedback-btn up" onclick="sendFeedback('${messageId}', 'up')" title="Thumbs up">👍</button>
+                        <button class="message-action-btn feedback-btn down" onclick="sendFeedback('${messageId}', 'down')" title="Thumbs down">👎</button>
                         <button class="message-action-btn" onclick="regenerateMessage('${messageId}')" title="Regenerate response">
-                            ð Regenerate
+                            🔄 Regenerate
                         </button>
                         <button class="message-action-btn" onclick="copyMessage('${messageId}')" title="Copy to clipboard">
-                            ð Copy
+                            📋 Copy
+                        </button>
+                    </div>
+                `;
+            } else if (sender === 'user') {
+                actionsHTML = `
+                    <div class="message-actions">
+                        <button class="message-action-btn" onclick="editMessage('${messageId}')" title="Edit message">
+                            ✏️ Edit
                         </button>
                     </div>
                 `;
@@ -946,15 +1142,37 @@
             
             // Track message for conversation history
             currentMessages.push({
+                id: messageId,
                 sender: sender,
                 content: content,
                 timestamp: new Date().toISOString()
             });
             
-            // Generate title after we have enough context (2+ exchanges)
-            if (currentMessages.length >= 3 && currentMessages.length <= 4 && sender === 'assistant') {
-                console.log('Triggering title generation with', currentMessages.length, 'messages');
-                generateConversationTitle();
+        }
+
+        async function sendFeedback(messageId, value) {
+            if (messageFeedback[messageId]) return;
+            const messageDiv = document.getElementById(messageId);
+            if (!messageDiv) return;
+            const upBtn = messageDiv.querySelector('.feedback-btn.up');
+            const downBtn = messageDiv.querySelector('.feedback-btn.down');
+            if (!upBtn || !downBtn) return;
+            upBtn.disabled = downBtn.disabled = true;
+            try {
+                await fetch(`${API_BASE}/feedback`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ messageId, value })
+                });
+                messageFeedback[messageId] = value;
+                if (value === 'up') {
+                    upBtn.classList.add('selected');
+                } else {
+                    downBtn.classList.add('selected');
+                }
+            } catch (err) {
+                console.error('Error sending feedback:', err);
+                upBtn.disabled = downBtn.disabled = false;
             }
         }
 
@@ -963,10 +1181,10 @@
             try {
                 console.log('Generating title for messages:', currentMessages);
                 
-                const response = await fetch(`${API_BASE}/conversations/generate-title`, {
+                const response = await fetch(`${API_BASE}/conversation/title`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ messages: currentMessages })
+                    body: JSON.stringify({ messages: currentMessages.slice(0, 2) })
                 });
                 
                 console.log('Title generation response status:', response.status);
@@ -980,6 +1198,7 @@
                     const existingConv = conversations.find(c => c.id === currentConversationId);
                     if (existingConv) {
                         existingConv.title = title;
+                        existingConv.messages = [...currentMessages];
                         existingConv.lastMessage = new Date().toISOString();
                     } else {
                         // Create new conversation entry
@@ -1013,6 +1232,7 @@
                     const existingConv = conversations.find(c => c.id === currentConversationId);
                     if (existingConv) {
                         existingConv.title = fallbackTitle;
+                        existingConv.messages = [...currentMessages];
                         existingConv.lastMessage = new Date().toISOString();
                     } else {
                         const newConv = {
@@ -1059,7 +1279,7 @@
                             <span></span>
                         </div>
                         <button class="message-action-btn" onclick="stopGeneration()" style="opacity: 1; margin-left: 10px;">
-                            â¹ï¸ Stop
+                            ⏹️ Stop
                         </button>
                     `;
                 } else {
@@ -1155,9 +1375,9 @@
             const messages = document.getElementById('messages');
             messages.innerHTML = `
                 <div class="message assistant">
-                    <div class="message-avatar">ð§ </div>
+                    <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                     <div class="message-content">
-                        <div class="message-text">ð Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
+                        <div class="message-text">👋 Hello! Starting a new conversation. I still remember everything from our previous chats.</div>
                         <div class="message-time">Just now</div>
                     </div>
                 </div>
@@ -1197,9 +1417,9 @@
                 currentMessages = [];
                 document.getElementById('messages').innerHTML = `
                     <div class="message assistant">
-                        <div class="message-avatar">ð§ </div>
+                        <div class="message-avatar"><img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon"></div>
                         <div class="message-content">
-                            <div class="message-text">ð Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
+                            <div class="message-text">👋 Hello! I'm your AI assistant with memory. I can remember our conversations and learn from them.</div>
                             <div class="message-time">Just now</div>
                         </div>
                     </div>
@@ -1220,10 +1440,12 @@
             messages.forEach(msg => {
                 const messageDiv = document.createElement('div');
                 messageDiv.className = `message ${msg.sender}`;
-                
+
                 const time = new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-                const avatar = msg.sender === 'user' ? 'ð¤' : 'ð§ ';
-                
+                const avatar = msg.sender === 'user'
+                    ? '<img src="assets/user_avatar.svg" alt="User" class="avatar-icon">'
+                    : '<img src="assets/openai_swirl.svg" alt="AI" class="avatar-icon">';
+
                 messageDiv.innerHTML = `
                     <div class="message-avatar">${avatar}</div>
                     <div class="message-content">
@@ -1253,7 +1475,7 @@
                 });
                 
                 const data = await response.json();
-                let results = `ð Search results for "${query}":\n\n`;
+                let results = `🔍 Search results for "${query}":\n\n`;
                 
                 if (data.memories.length === 0) {
                     results += 'No memories found.';
@@ -1266,7 +1488,7 @@
                 addMessage('assistant', results);
                 
             } catch (error) {
-                addMessage('assistant', 'â Error searching memories.');
+                addMessage('assistant', '❌ Error searching memories.');
             }
         }
 
@@ -1278,19 +1500,19 @@
                 const response = await fetch(`${API_BASE}/memories/stats`);
                 const data = await response.json();
                 
-                const stats = `ð Memory Statistics:
+                const stats = `📊 Memory Statistics:
 
 Total memories: ${data.total_memories}
 Average length: ${data.average_content_length.toFixed(1)} characters
 Total content: ${data.total_content_length} characters
 
 Memory types:
-${Object.entries(data.memory_types).map(([type, count]) => `â¢ ${type}: ${count}`).join('\n')}`;
+${Object.entries(data.memory_types).map(([type, count]) => `• ${type}: ${count}`).join('\n')}`;
                 
                 addMessage('assistant', stats);
                 
             } catch (error) {
-                addMessage('assistant', 'â Error fetching memory stats.');
+                addMessage('assistant', '❌ Error fetching memory stats.');
             }
         }
 
@@ -1314,13 +1536,13 @@ ${Object.entries(data.memory_types).map(([type, count]) => `â¢ ${type}: ${co
                     a.click();
                     window.URL.revokeObjectURL(url);
                     
-                    addMessage('assistant', 'ð¾ Memories exported successfully!');
+                    addMessage('assistant', '💾 Memories exported successfully!');
                 } else {
-                    addMessage('assistant', 'â Error exporting memories.');
+                    addMessage('assistant', '❌ Error exporting memories.');
                 }
                 
             } catch (error) {
-                addMessage('assistant', 'â Error exporting memories.');
+                addMessage('assistant', '❌ Error exporting memories.');
             }
         }
 
