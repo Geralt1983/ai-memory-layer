@@ -8,6 +8,10 @@ import os
 import sys
 import json
 from datetime import datetime
+import pytest
+
+if not os.getenv("OPENAI_API_KEY"):
+    pytest.skip("OPENAI_API_KEY not set", allow_module_level=True)
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))

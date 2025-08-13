@@ -22,15 +22,21 @@ class EmbeddingProvider(ABC):
 
 class OpenAIEmbeddings(EmbeddingProvider):
     def __init__(self, api_key: str = None, model: str = "text-embedding-ada-002"):
-        # If no API key provided, OpenAI client will use OPENAI_API_KEY from environment
-        if api_key:
-            self.client = OpenAI(api_key=api_key)
-        else:
-            self.client = OpenAI()  # Uses environment variable
+        # Delay client creation until first use so tests can configure mocks
+        self.api_key = api_key
+        self.client: Optional[OpenAI] = None
         self.model = model
         self.logger = get_logger("embeddings")
 
         self.logger.info("OpenAI embeddings initialized", extra={"model": model})
+
+    def _ensure_client(self) -> OpenAI:
+        if self.client is None:
+            if self.api_key:
+                self.client = OpenAI(api_key=self.api_key)
+            else:
+                self.client = OpenAI()
+        return self.client
 
     @monitor_performance("embed_text")
     def embed_text(self, text: Union[str, List[str]]) -> np.ndarray:
@@ -44,7 +50,8 @@ class OpenAIEmbeddings(EmbeddingProvider):
         )
 
         try:
-            response = self.client.embeddings.create(input=text, model=self.model)
+            client = self._ensure_client()
+            response = client.embeddings.create(input=text, model=self.model)
 
             embedding = np.array(response.data[0].embedding)
 
@@ -90,7 +97,8 @@ class OpenAIEmbeddings(EmbeddingProvider):
         )
 
         try:
-            response = self.client.embeddings.create(input=texts, model=self.model)
+            client = self._ensure_client()
+            response = client.embeddings.create(input=texts, model=self.model)
 
             embeddings = [np.array(item.embedding) for item in response.data]
 

@@ -13,6 +13,9 @@ class TestOpenAIEmbeddings:
         provider = OpenAIEmbeddings("test-api-key", "text-embedding-ada-002")
 
         assert provider.model == "text-embedding-ada-002"
+
+        # Client is created lazily; first call should trigger OpenAI initialization
+        provider.embed_text("hello")
         mock_openai_class.assert_called_once_with(api_key="test-api-key")
 
     @patch("integrations.embeddings.OpenAI")

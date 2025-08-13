@@ -9,6 +9,10 @@ import os
 from datetime import datetime
 from openai import OpenAI
 import re
+import pytest
+
+if not os.getenv("OPENAI_API_KEY"):
+    pytest.skip("OPENAI_API_KEY not set", allow_module_level=True)
 
 
 class MemoryDeduplicationTester:
