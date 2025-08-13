@@ -410,24 +410,23 @@ async def chat_with_memory(
             extra={
                 "message_length": len(chat_data.message),
                 "thread_id": chat_data.thread_id,
-                "model": openai_integration.model,
+                "model": direct_chat.model,
             },
         )
 
         # Build context string for debugging/compatibility
-        context_summary = openai_integration.context_builder.build_context(
+        context_summary = direct_chat.context_builder.build_context(
             message=chat_data.message,
             include_recent=chat_data.include_recent,
             include_relevant=chat_data.include_relevant,
             system_prompt=chat_data.system_prompt,
         )
 
-        # Execute chat through the compatibility wrapper
-        response = openai_integration.chat_with_memory(
+        # Execute chat using the proper chat method with thread_id
+        response, _ = direct_chat.chat(
             message=chat_data.message,
+            thread_id=chat_data.thread_id,
             system_prompt=chat_data.system_prompt,
-            include_recent=chat_data.include_recent,
-            include_relevant=chat_data.include_relevant,
             remember_response=chat_data.remember_response,
         )
 
@@ -437,7 +436,7 @@ async def chat_with_memory(
             extra={
                 "response_length": len(response),
                 "processing_time_ms": round(processing_time * 1000, 2),
-                "messages_count": getattr(openai_integration, "last_messages_count", 0),
+                "messages_count": getattr(direct_chat, "last_messages_count", 0),
                 "thread_id": chat_data.thread_id,
             },
         )

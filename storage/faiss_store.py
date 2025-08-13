@@ -93,15 +93,12 @@ except ImportError:
 class FaissVectorStore(VectorStore):
     def __init__(self, dimension: int = 1536, index_path: Optional[str] = None):
         self.dimension = dimension
-        base_index = faiss.IndexFlatL2(dimension)
-        try:
-            self.index = faiss.IndexIDMap(base_index)
-        except AttributeError:
-            # Fallback for mock faiss which directly returns base_index
-            self.index = base_index
+        # Use simple FlatL2 index instead of IndexIDMap to avoid add_with_ids issues
+        self.index = faiss.IndexFlatL2(dimension)
         self.memories: Dict[int, Memory] = {}
         self.current_id = 0
         self.index_path = index_path
+        self.id_to_index_map: Dict[int, int] = {}  # Map memory ID to index position
 
         if index_path and os.path.exists(f"{index_path}.index"):
             self.load_index(index_path)
@@ -114,15 +111,16 @@ class FaissVectorStore(VectorStore):
 
         embedding = memory.embedding.astype("float32").reshape(1, -1)
 
+        # Get the current index position before adding
+        index_position = self.index.ntotal
+        
+        # Add to FAISS index
+        self.index.add(embedding)
+
+        # Map memory ID to index position
         memory_id_int = self.current_id
-        ids = np.array([memory_id_int], dtype="int64")
-
-        if hasattr(self.index, "add_with_ids"):
-            self.index.add_with_ids(embedding, ids)
-        else:
-            # Fallback for mock index
-            self.index.add(embedding)
-
+        self.id_to_index_map[memory_id_int] = index_position
+        
         memory_id = str(memory_id_int)
         self.memories[memory_id_int] = memory
         self.current_id += 1
@@ -142,11 +140,16 @@ class FaissVectorStore(VectorStore):
         distances, indices = self.index.search(query_embedding, k)
 
         results = []
-        for i, idx in enumerate(indices[0]):
-            if idx in self.memories:
-                memory = self.memories[idx]
-                memory.relevance_score = float(1 / (1 + distances[0][i]))
-                results.append(memory)
+        # Map index positions back to memory IDs
+        index_to_id_map = {v: k for k, v in self.id_to_index_map.items()}
+        
+        for i, index_pos in enumerate(indices[0]):
+            if index_pos in index_to_id_map:
+                memory_id = index_to_id_map[index_pos]
+                if memory_id in self.memories:
+                    memory = self.memories[memory_id]
+                    memory.relevance_score = float(1 / (1 + distances[0][i]))
+                    results.append(memory)
 
         return results
 
@@ -178,6 +181,7 @@ class FaissVectorStore(VectorStore):
                     "memories": self.memories,
                     "current_id": self.current_id,
                     "dimension": self.dimension,
+                    "id_to_index_map": self.id_to_index_map,
                 },
                 f,
             )
@@ -192,3 +196,10 @@ class FaissVectorStore(VectorStore):
                 self.memories = data["memories"]
                 self.current_id = data["current_id"]
                 self.dimension = data["dimension"]
+                # Load mapping if available, otherwise rebuild it
+                self.id_to_index_map = data.get("id_to_index_map", {})
+                
+                # If mapping is missing, rebuild it based on memory IDs
+                if not self.id_to_index_map and self.memories:
+                    for i, memory_id in enumerate(sorted(self.memories.keys())):
+                        self.id_to_index_map[memory_id] = i
