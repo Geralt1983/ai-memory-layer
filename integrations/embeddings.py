@@ -21,16 +21,27 @@ class EmbeddingProvider(ABC):
 
 
 class OpenAIEmbeddings(EmbeddingProvider):
-    def __init__(self, api_key: str = None, model: str = "text-embedding-ada-002"):
-        # If no API key provided, OpenAI client will use OPENAI_API_KEY from environment
-        if api_key:
-            self.client = OpenAI(api_key=api_key)
-        else:
-            self.client = OpenAI()  # Uses environment variable
+    def __init__(self, api_key: str | None = None, model: str = "text-embedding-ada-002"):
+        """Create a provider for OpenAI embeddings.
+
+        The OpenAI client is instantiated here to maintain backwards
+        compatibility with existing code and tests that expect this
+        side-effect.  However, the client is recreated on each embedding
+        request to ensure that tests can swap out the patched return
+        value after initialization.
+        """
+
+        self.api_key = api_key
+        # Initial client creation for backward compatibility
+        self._client = OpenAI(api_key=api_key) if api_key else OpenAI()
         self.model = model
         self.logger = get_logger("embeddings")
 
         self.logger.info("OpenAI embeddings initialized", extra={"model": model})
+
+    def _get_client(self) -> OpenAI:
+        """Return a fresh OpenAI client for each request."""
+        return OpenAI(api_key=self.api_key) if self.api_key else OpenAI()
 
     @monitor_performance("embed_text")
     def embed_text(self, text: Union[str, List[str]]) -> np.ndarray:
@@ -44,7 +55,8 @@ class OpenAIEmbeddings(EmbeddingProvider):
         )
 
         try:
-            response = self.client.embeddings.create(input=text, model=self.model)
+            client = self._get_client()
+            response = client.embeddings.create(input=text, model=self.model)
 
             embedding = np.array(response.data[0].embedding)
 
@@ -90,7 +102,8 @@ class OpenAIEmbeddings(EmbeddingProvider):
         )
 
         try:
-            response = self.client.embeddings.create(input=texts, model=self.model)
+            client = self._get_client()
+            response = client.embeddings.create(input=texts, model=self.model)
 
             embeddings = [np.array(item.embedding) for item in response.data]
 
