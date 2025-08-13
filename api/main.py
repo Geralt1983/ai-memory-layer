@@ -6,6 +6,7 @@ import os
 from typing import List
 from datetime import datetime
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -346,6 +347,8 @@ async def get_recent_memories(
         )
 
     memories = engine.get_recent_memories(n)
+    if not isinstance(memories, list):
+        memories = []
     return [
         MemoryResponse(
             content=memory.content,
@@ -411,13 +414,13 @@ async def chat_with_memory(
             extra={
                 "message_length": len(chat_data.message),
                 "thread_id": chat_data.thread_id,
-                "model": openai_integration.model,
+                "model": getattr(direct_chat, "model", None),
             },
         )
 
         # Build context string for debugging/compatibility
-        context_summary = openai_integration.context_builder.build_context(
-            message=chat_data.message,
+        context_summary = direct_chat.context_builder.build_context(
+            query=chat_data.message,
             include_recent=chat_data.include_recent,
             include_relevant=chat_data.include_relevant,
             system_prompt=chat_data.system_prompt,
@@ -430,7 +433,7 @@ async def chat_with_memory(
         )
 
         # Execute chat through the compatibility wrapper
-        response = openai_integration.chat_with_memory(
+        response = direct_chat.chat_with_memory(
             message=chat_data.message,
             system_prompt=chat_data.system_prompt,
             include_recent=chat_data.include_recent,
@@ -445,7 +448,7 @@ async def chat_with_memory(
             extra={
                 "response_length": len(response),
                 "processing_time_ms": round(processing_time * 1000, 2),
-                "messages_count": getattr(openai_integration, "last_messages_count", 0),
+                "messages_count": getattr(direct_chat, "last_messages_count", 0),
                 "thread_id": chat_data.thread_id,
             },
         )

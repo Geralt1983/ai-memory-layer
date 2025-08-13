@@ -78,9 +78,9 @@ class MemoryLayerLogger:
         return cls._instance
 
     def __init__(self) -> None:
-        if not self._initialized:
+        if not MemoryLayerLogger._initialized:
             self.setup_logging()
-            self._initialized = True
+            MemoryLayerLogger._initialized = True
 
     def setup_logging(self) -> None:
         """Setup logging configuration"""
