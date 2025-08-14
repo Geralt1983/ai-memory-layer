@@ -236,7 +236,9 @@ class TestMemoryEngine:
         other_memory = memory_engine.add_memory("Some unrelated memory about Python")
 
         # Simulate vector store search returning only the unrelated memory
-        with patch.object(memory_engine.vector_store, "search", return_value=[other_memory]):
+        with patch.object(
+            memory_engine.vector_store, "search", return_value=[other_memory]
+        ):
             results = memory_engine.search_memories("irrelevant query", k=1)
 
         # Ensure the correction is stored and retrievable
@@ -245,3 +247,23 @@ class TestMemoryEngine:
 
         # Identity correction should be included even though it wasn't in search results
         assert correction in results
+
+    def test_multi_query_search_memories(self, memory_engine):
+        """Multi-query search should aggregate results from query variations."""
+        memory_engine.add_memory("Python programming tutorial")
+        memory_engine.add_memory("Java programming tutorial")
+        memory_engine.add_memory("Cooking recipes")
+
+        def generator(query, n):
+            return [
+                "Python programming tutorial",
+                "Java programming tutorial",
+            ]
+
+        results = memory_engine.multi_query_search_memories(
+            "programming help", k=5, query_generator=generator
+        )
+
+        contents = [m.content for m in results]
+        assert "Python programming tutorial" in contents
+        assert "Java programming tutorial" in contents
