@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional, Union
+from typing import List, Dict, Any, Optional, Union, Callable
 from datetime import datetime
 import os
 
@@ -47,7 +47,7 @@ class Memory:
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
     relevance_score: float = 0.0
-    
+
     # New fields for enhanced memory system
     role: str = "user"  # "user" or "assistant"
     thread_id: Optional[str] = None
@@ -74,7 +74,11 @@ class Memory:
         return cls(
             content=data.get("content", data.get("text", "")),  # Support 'text' field
             metadata=data.get("metadata", {}),
-            timestamp=parse_timestamp(data.get("timestamp")) if isinstance(data.get("timestamp"), str) else data.get("timestamp", datetime.now()),
+            timestamp=(
+                parse_timestamp(data.get("timestamp"))
+                if isinstance(data.get("timestamp"), str)
+                else data.get("timestamp", datetime.now())
+            ),
             relevance_score=data.get("relevance_score", 0.0),
             role=data.get("role", "user"),
             thread_id=data.get("thread_id"),
@@ -188,32 +192,38 @@ class MemoryEngine:
         )
 
         return memory
-    
+
     def add_identity_correction(self, correction: str, context: str = "") -> Memory:
         """Add a high-priority identity/correction memory that will always be included"""
         correction_content = f"IDENTITY CORRECTION: {correction}"
         if context:
             correction_content += f" Context: {context}"
-        
+
         metadata = {
             "type": "correction",
             "priority": "high",
             "category": "identity",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
-        
+
         # Remove any existing similar corrections to avoid duplicates
-        self.memories = [m for m in self.memories 
-                        if not (m.metadata.get("type") == "correction" and 
-                               correction.lower() in m.content.lower())]
-        
+        self.memories = [
+            m
+            for m in self.memories
+            if not (
+                m.metadata.get("type") == "correction"
+                and correction.lower() in m.content.lower()
+            )
+        ]
+
         self.logger.info(f"Adding identity correction: {correction}")
         return self.add_memory(correction_content, metadata, type="correction")
-    
+
     def get_high_priority_memories(self, limit: int = 3) -> List[Memory]:
         """Get high-priority memories (corrections, identity info) for system context"""
-        high_priority = [m for m in self.memories
-                        if m.metadata.get("priority") == "high"]
+        high_priority = [
+            m for m in self.memories if m.metadata.get("priority") == "high"
+        ]
 
         # Sort by recency
         high_priority.sort(key=lambda m: m.timestamp, reverse=True)
@@ -250,7 +260,9 @@ class MemoryEngine:
         ]
 
     @monitor_performance("search_memories")
-    def search_memories(self, query: str, k: int = 5, include_importance: bool = True) -> List[Memory]:
+    def search_memories(
+        self, query: str, k: int = 5, include_importance: bool = True
+    ) -> List[Memory]:
         self.logger.debug(
             "Searching memories",
             extra={
@@ -279,31 +291,33 @@ class MemoryEngine:
         # Apply importance weighting if enabled
         if include_importance and results:
             import math
-            
+
             for memory in results:
                 # Calculate age decay (optional, can be disabled)
                 age_days = (datetime.now() - memory.timestamp).days
                 age_decay = math.exp(-age_days / 30)  # 30-day half-life
-                
+
                 # Boost score based on importance and type
                 importance_boost = 1 + (0.5 * memory.importance)
-                
+
                 # Extra boost for critical types
                 type_boost = 1.0
                 if memory.type == "correction" or memory.type == "identity":
                     type_boost = 1.5
                 elif memory.type == "summary":
                     type_boost = 1.2
-                
+
                 # Apply weighted scoring
-                memory.relevance_score = memory.relevance_score * importance_boost * type_boost * age_decay
-                
+                memory.relevance_score = (
+                    memory.relevance_score * importance_boost * type_boost * age_decay
+                )
+
                 self.logger.debug(
                     f"Memory scoring: base={memory.relevance_score:.3f}, "
                     f"importance={memory.importance}, type={memory.type}, "
                     f"age_days={age_days}, final_score={memory.relevance_score:.3f}"
                 )
-            
+
             # Re-sort by new scores and take top k
             results.sort(key=lambda m: m.relevance_score, reverse=True)
             results = results[:k]
@@ -322,6 +336,56 @@ class MemoryEngine:
         )
 
         return results
+
+    def generate_query_variations(self, query: str, n: int = 3) -> List[str]:
+        """Generate multiple query variations using an LLM to improve recall."""
+        try:
+            from openai import OpenAI
+
+            client = OpenAI()
+            prompt = (
+                f"Generate {n} different search queries that would retrieve relevant context for: {query}\n"
+                "Return each query on a new line without numbering."
+            )
+            response = client.responses.create(model="gpt-4o-mini", input=prompt)
+            text = response.output_text.strip()
+            variations = [line.strip() for line in text.splitlines() if line.strip()]
+            if not variations:
+                return [query]
+            return variations[:n]
+        except Exception as e:
+            self.logger.warning(f"Query variation generation failed: {e}")
+            return [query]
+
+    def multi_query_search_memories(
+        self,
+        query: str,
+        k: int = 5,
+        variations: int = 3,
+        include_importance: bool = True,
+        query_generator: Optional[Callable[[str, int], List[str]]] = None,
+    ) -> List[Memory]:
+        """Perform multi-query retrieval by generating query variations and aggregating results."""
+        generator = query_generator or self.generate_query_variations
+        queries = generator(query, variations)
+        self.logger.debug(
+            "Multi-query search",
+            extra={"query": query, "variations": len(queries), "k": k},
+        )
+        combined: Dict[str, Memory] = {}
+        for q in queries:
+            results = self.search_memories(
+                q, k=k, include_importance=include_importance
+            )
+            for mem in results:
+                existing = combined.get(mem.content)
+                if not existing or mem.relevance_score > existing.relevance_score:
+                    combined[mem.content] = mem
+
+        final_results = sorted(
+            combined.values(), key=lambda m: m.relevance_score, reverse=True
+        )
+        return final_results[:k]
 
     def get_recent_memories(self, n: int = 10) -> List[Memory]:
         return sorted(self.memories, key=lambda m: m.timestamp, reverse=True)[:n]
