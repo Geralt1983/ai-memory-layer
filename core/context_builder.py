@@ -32,13 +32,15 @@ class ContextBuilder:
         context_parts = []
 
         # Always include user profile or identity memories
+        identity_memories = []
         if hasattr(self.memory_engine, 'get_identity_memories'):
             identity_memories = self.memory_engine.get_identity_memories()
-            if identity_memories:
-                context_parts.append("Key information about Jeremy:")
-                context_parts.extend([m.content for m in identity_memories[:5]])
+
+        if identity_memories:
+            context_parts.append("## Profile Information:")
+            context_parts.extend(f"- {m.content}" for m in identity_memories[:5])
         elif self.profile_query:
-            # Fallback to profile query method if identity method doesn't exist
+            # Fallback to profile query method if identity memories are not available
             profile_memories = self.memory_engine.search_memories(
                 self.profile_query, k=10
             )
@@ -56,7 +58,7 @@ class ContextBuilder:
         if include_recent > 0:
             recent_memories = self.memory_engine.get_recent_memories(include_recent)
             if recent_memories:
-                context_parts.append("## Recent Context:")
+                context_parts.append("Recent conversations:")
                 for memory in recent_memories:
                     context_parts.append(f"- {memory.content}")
 
@@ -66,7 +68,7 @@ class ContextBuilder:
                 query, include_relevant
             )
             if relevant_memories:
-                context_parts.append("## Relevant Context:")
+                context_parts.append(f"Relevant to '{query}':")
                 for memory in relevant_memories:
                     context_parts.append(
                         f"- {memory.content} (relevance: {memory.relevance_score:.2f})"

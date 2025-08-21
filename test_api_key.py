@@ -7,6 +7,7 @@ Simple script to verify if the API key in .env file is valid
 import os
 from dotenv import load_dotenv
 import openai
+import pytest
 
 # Load environment variables
 load_dotenv()
@@ -14,10 +15,9 @@ load_dotenv()
 def test_api_key():
     """Test if the OpenAI API key is valid"""
     api_key = os.getenv("OPENAI_API_KEY")
-    
+
     if not api_key:
-        print("❌ No API key found in .env file")
-        return False
+        pytest.skip("OPENAI_API_KEY not set")
     
     # Show masked key for verification
     masked_key = f"{api_key[:8]}...{api_key[-4:]}"
@@ -57,8 +57,11 @@ def test_api_key():
 def test_embeddings():
     """Test if embeddings work with the API key"""
     api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        pytest.skip("OPENAI_API_KEY not set")
+
     client = openai.OpenAI(api_key=api_key)
-    
+
     try:
         response = client.embeddings.create(
             model="text-embedding-ada-002",
@@ -67,7 +70,7 @@ def test_embeddings():
         print("\n✅ Embeddings API also works!")
         print(f"Embedding dimension: {len(response.data[0].embedding)}")
         return True
-        
+
     except Exception as e:
         print(f"\n❌ Embeddings failed: {type(e).__name__}: {e}")
         return False

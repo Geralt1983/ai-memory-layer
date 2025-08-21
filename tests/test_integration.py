@@ -157,8 +157,8 @@ class TestFullIntegration:
         )
 
         # Should contain both recent and relevant sections
-        assert "## Recent Context:" in context
-        assert "## Relevant Context:" in context
+        assert "Recent conversations:" in context
+        assert "Relevant to 'Python programming':" in context
 
         # Should contain Python-related content
         assert "Python" in context
