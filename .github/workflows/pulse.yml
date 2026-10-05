@@ -1,0 +1,10 @@
+name: Pulse — Integration Beacon
+on:
+  workflow_dispatch:
+    inputs:
+      tag: {required: false, default: "auto"}
+jobs:
+  pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "TAKEAI-FINAL-${{ github.run_id }} $(hostname) $(date -u +%s)"
