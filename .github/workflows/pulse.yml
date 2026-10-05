@@ -1,0 +1,16 @@
+name: Pulse — Integration Beacon
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "integration tag"
+        required: false
+        default: "auto"
+jobs:
+  pulse:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pulse
+        run: |
+          echo "TAKEAI-PROOF-${{ github.run_id }} $(hostname) $(date -u +%s)"
+          echo "workflow=${{ github.workflow }} ref=${{ github.ref }} actor=${{ github.actor }}"
